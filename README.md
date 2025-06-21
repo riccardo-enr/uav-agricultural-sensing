@@ -226,18 +226,6 @@ Contributions are welcome! Please follow these guidelines:
 
 This project is licensed under the [LICENSE](LICENSE) file in the root directory.
 
-## Authors and Acknowledgments
-
-- **Maintainer**: Riccardo (riccardo.enrico97@gmail.com)
-- **Algorithm**: Based on butterfly foraging behavior and Lévy flight theory
-- **Inspiration**: Bio-inspired robotics and agricultural automation research
-
-## References
-
-1. Viswanathan, G. M., et al. "Lévy flight search patterns of wandering albatrosses." Nature 381.6581 (1996): 413-415.
-2. Reynolds, A. M., et al. "Displaced honey bees perform optimal scale-free search flights." Ecology 88.8 (2007): 1955-1961.
-3. Bartumeus, F., et al. "Animal search strategies: a quantitative random-walk analysis." Ecology 86.11 (2005): 3078-3087.
-
 ## Support
 
 For questions, issues, or feature requests, please:
