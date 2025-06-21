@@ -1,0 +1,58 @@
+FROM althack/ros2:jazzy-cuda-full
+
+WORKDIR /workspaces
+
+COPY ./.devcontainer/uav/.bash_history /.bash_history
+
+ENV HISTFILE=/.bash_history \
+    HISTSIZE=1000 \
+    HISTFILESIZE=2000 \
+    PROMPT_COMMAND='history -a'
+
+RUN rm -f /usr/share/keyrings/ros-archive-keyring.gpg && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    apt-get update && \
+    apt-get install -y ros2-apt-source && \
+    rm -f /etc/apt/sources.list.d/ros2.list && \
+    apt-get update
+
+# Install required dependencies (UAV specific - no simulation tools)
+RUN apt-get install -y --no-install-recommends \
+    git \
+    cmake \
+    build-essential \
+    wget \
+    python3-tk \
+    python3-setuptools \
+    tree \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip config set global.break-system-packages true
+
+# Micro XRCE-DDS Agent (for UAV communication)
+RUN git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && \
+    cd Micro-XRCE-DDS-Agent && mkdir build && cd build && \
+    cmake .. && make && sudo make install && sudo ldconfig /usr/local/lib/
+
+# Copy package
+RUN mkdir -p /workspaces/uav_control
+COPY ./src /workspaces/uav_control/src
+
+# Install Python dependencies
+RUN apt-get remove -y python3-scipy
+RUN pip3 install numpy==1.26.4 scipy==1.15.2
+RUN pip3 install seaborn matplotlib
+
+# Set ownership for ros user
+RUN chown -R ros:ros /workspaces
+RUN chown ros:ros /.bash_history
+
+# Switch to ros user
+USER ros
+
+# Setup bash environment for ros user
+RUN echo "\nsource /opt/ros/jazzy/setup.bash" >> /home/ros/.bashrc && \
+    echo "if [ -f /workspaces/uav_control/install/setup.bash ]; then source /workspaces/uav_control/install/setup.bash; fi" >> /home/ros/.bashrc
+
+CMD ["/bin/bash"]

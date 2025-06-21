@@ -1,0 +1,51 @@
+{
+    "name": "UAV Agri Sensing - Desktop",
+    "build": {
+        "dockerfile": "../Dockerfile.desktop",
+        "context": "../.."
+    },
+    "remoteUser": "ros",
+    "runArgs": [
+        "--net=host",
+        "--privileged",
+        "--name=uav_agri_sensing",
+        "--volume=/tmp/.X11-unix:/tmp/.X11-unix",
+        "--env=DISPLAY=${localEnv:DISPLAY}",
+        "--device-cgroup-rule=c 189:* rmw",
+        "--security-opt=seccomp:unconfined",
+        "--security-opt=apparmor:unconfined",
+        "--ipc=host"
+    ],
+    "containerEnv": {
+        "DISPLAY": "${localEnv:DISPLAY}",
+        "WAYLAND_DISPLAY": "${localEnv:WAYLAND_DISPLAY}",
+        "XDG_RUNTIME_DIR": "${localEnv:XDG_RUNTIME_DIR}",
+        "PULSE_SERVER": "${localEnv:PULSE_SERVER}",
+        "QT_X11_NO_MITSHM": "1"
+    },
+    "mounts": [
+        "source=/dev,target=/dev,type=bind"
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "althack.ament-task-provider",
+                "betwo.b2-catkin-tools",
+                "DotJoshJohnson.xml",
+                "ms-azuretools.vscode-docker",
+                "ms-iot.vscode-ros",
+                "ms-python.python",
+                "ms-vscode.cpptools",
+                "redhat.vscode-yaml",
+                "smilerobotics.urdf",
+                "twxs.cmake",
+                "yzhang.markdown-all-in-one",
+                "zachflower.uncrustify",
+                "charliermarsh.ruff",
+                "hyperoot.settings-organizer",
+                "Gruntfuggly.todo-tree",
+                "johnpapa.vscode-peacock"
+            ]
+        }
+    }
+}
