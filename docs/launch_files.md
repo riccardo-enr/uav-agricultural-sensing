@@ -130,6 +130,211 @@ ros2 launch uav_planning demo.launch.py mode:=full_simulation
 ros2 launch uav_planning demo.launch.py mode:=agricultural_survey
 ```
 
+## Separated Architecture Launch Files
+
+The new separated architecture provides additional launch files for modular operation:
+
+### UAV System Launch (`uav_system.launch.py`)
+
+**Purpose**: Launches both the UAV controller and path generator action server for the separated architecture.
+
+**Usage**:
+```bash
+ros2 launch uav_planning uav_system.launch.py
+```
+
+**Components Started**:
+- UAV Controller node (continuous vehicle control)
+- Path Generator Action Server (on-demand mission planning)
+
+**Arguments**:
+
+| Argument       | Type   | Default | Description             |
+| -------------- | ------ | ------- | ----------------------- |
+| `namespace`    | string | ""      | Namespace for the nodes |
+| `use_sim_time` | bool   | false   | Use simulation time     |
+
+### UAV System Demo (`uav_system_demo.launch.py`)
+
+**Purpose**: Launches the separated architecture with an automatic demo client.
+
+**Usage**:
+```bash
+ros2 launch uav_planning uav_system_demo.launch.py
+```
+
+**Components Started**:
+- UAV Controller node
+- Path Generator Action Server
+- Demo client (starts automatically after 3 seconds)
+
+**Arguments**:
+
+| Argument          | Type   | Default | Description                     |
+| ----------------- | ------ | ------- | ------------------------------- |
+| `namespace`       | string | ""      | Namespace for the nodes         |
+| `use_sim_time`    | bool   | false   | Use simulation time             |
+| `auto_start_demo` | bool   | true    | Automatically start demo client |
+
+The demo client uses these default parameters:
+- Exploration area: [-10, 10] x [-10, 10] x [1, 5] meters
+- Alpha: 2.0
+- Visit threshold: 2.0 meters
+- Max waypoints: 20
+- Exploration time: 120 seconds
+- Auto arm: false (for safety)
+
+## Manual Component Startup
+
+For development and debugging, you can start components individually:
+
+### 1. UAV Controller
+```bash
+ros2 run uav_planning uav_controller
+```
+
+### 2. Path Generator Action Server
+```bash
+ros2 run uav_planning path_generator_action
+```
+
+### 3. Architecture Test
+```bash
+ros2 run uav_planning architecture_test
+```
+
+### 4. System Monitor
+```bash
+ros2 run uav_planning uav_monitor
+```
+
+### 5. Demo Client
+```bash
+ros2 run uav_planning path_generator_client
+```
+
+## Legacy Launch Files
+
+The following launch files support the original monolithic architecture:
+
+### 1. Complete Simulation (`uav_simulation.launch.py`)
+
+**Purpose**: Starts the complete UAV simulation environment including Gazebo, PX4 SITL, microXRCE DDS Agent, and the bioinspired path planner.
+
+**Usage**:
+```bash
+ros2 launch uav_planning uav_simulation.launch.py
+```
+
+**Components Started**:
+- Gazebo Classic simulation environment
+- PX4 SITL (Software In The Loop) autopilot
+- microXRCE DDS Agent for ROS 2 ↔ PX4 communication
+- Bioinspired path generator node
+
+**Arguments**:
+
+| Argument          | Type   | Default     | Description                          |
+| ----------------- | ------ | ----------- | ------------------------------------ |
+| `world`           | string | `empty.sdf` | Gazebo world file to load            |
+| `vehicle`         | string | `x500`      | PX4 vehicle model (x500, iris, etc.) |
+| `headless`        | bool   | `false`     | Run Gazebo without GUI               |
+| `x_min`           | float  | -20.0       | Minimum X boundary (meters)          |
+| `x_max`           | float  | 20.0        | Maximum X boundary (meters)          |
+| `y_min`           | float  | -20.0       | Minimum Y boundary (meters)          |
+| `y_max`           | float  | 20.0        | Maximum Y boundary (meters)          |
+| `z_min`           | float  | 5.0         | Minimum altitude (meters)            |
+| `z_max`           | float  | 15.0        | Maximum altitude (meters)            |
+| `alpha`           | float  | 1.5         | Lévy flight shape parameter          |
+| `velocity`        | float  | 8.0         | UAV cruise velocity (m/s)            |
+| `visit_threshold` | float  | 2.0         | Waypoint reach distance (meters)     |
+
+**Examples**:
+
+```bash
+# Basic simulation with default parameters
+ros2 launch uav_planning uav_simulation.launch.py
+
+# Headless simulation for performance
+ros2 launch uav_planning uav_simulation.launch.py headless:=true
+
+# Large field simulation
+ros2 launch uav_planning uav_simulation.launch.py \
+    x_min:=-100.0 x_max:=100.0 \
+    y_min:=-75.0 y_max:=75.0 \
+    z_min:=10.0 z_max:=25.0 \
+    velocity:=12.0
+
+# Agricultural field with custom world
+ros2 launch uav_planning uav_simulation.launch.py \
+    world:=agricultural_field.sdf \
+    alpha:=1.3 \
+    velocity:=6.0
+```
+
+### 2. Path Planner Only (`path_planner.launch.py`)
+
+**Purpose**: Starts only the microXRCE DDS Agent and bioinspired path planner. Use this when PX4 and Gazebo are already running separately.
+
+**Usage**:
+```bash
+ros2 launch uav_planning path_planner.launch.py
+```
+
+**Components Started**:
+- microXRCE DDS Agent
+- Bioinspired path generator node
+
+**Arguments**:
+All algorithm parameters (same as above, excluding simulation-specific ones like `world`, `vehicle`, `headless`)
+
+**Examples**:
+
+```bash
+# Basic path planner
+ros2 launch uav_planning path_planner.launch.py
+
+# Custom boundaries
+ros2 launch uav_planning path_planner.launch.py \
+    x_min:=-50.0 x_max:=50.0 \
+    z_min:=8.0 z_max:=20.0
+
+# High-speed coverage
+ros2 launch uav_planning path_planner.launch.py \
+    alpha:=2.0 \
+    velocity:=15.0 \
+    visit_threshold:=5.0
+```
+
+### 3. Demo Configurations (`demo.launch.py`)
+
+**Purpose**: Demonstrates different usage scenarios with predefined parameters for testing and showcasing the system.
+
+**Usage**:
+```bash
+ros2 launch uav_planning demo.launch.py mode:=<mode_name>
+```
+
+**Available Modes**:
+
+| Mode                  | Area Size | Use Case            | Description                                       |
+| --------------------- | --------- | ------------------- | ------------------------------------------------- |
+| `planner_only`        | 15×15m    | Development/Testing | Basic path planning for quick iteration           |
+| `full_simulation`     | 25×25m    | Complete Demo       | Full simulation with moderate area                |
+| `agricultural_survey` | 200×150m  | Production          | Large area coverage for agricultural applications |
+
+**Examples**:
+```bash
+# Basic path planning for development
+ros2 launch uav_planning demo.launch.py mode:=planner_only
+
+# Complete simulation demo
+ros2 launch uav_planning demo.launch.py mode:=full_simulation
+
+# Large-scale agricultural survey
+ros2 launch uav_planning demo.launch.py mode:=agricultural_survey
+```
+
 ## ROS 2 Topics Reference
 
 ### Published Topics

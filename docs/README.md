@@ -17,7 +17,9 @@ This project uses **development containers** for a streamlined setup experience.
 ### Getting Started
 - **[Installation Guide](installation.md)** - Development container setup and manual installation
 - **[Quick Start Tutorial](tutorials/quickstart.md)** - Get up and running in 15 minutes
+- **[Quick Start Guide](quick_start.md)** - Separated architecture quick start
 - **[System Architecture](architecture.md)** - Understanding the system design
+- **[Separated Architecture](separated_architecture.md)** - New modular architecture design
 
 ### User Guides
 - **[Configuration Guide](configuration.md)** - Parameter tuning and customization
