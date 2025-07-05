@@ -1,0 +1,89 @@
+# Large Commercial Farm Configuration
+
+Configuration optimized for large-scale commercial agricultural operations (200+ acres).
+
+```yaml
+/**:
+  ros__parameters:
+    # Large commercial farm boundaries (500m x 800m = ~250 acres)
+    x_min: 0.0
+    x_max: 500.0
+    y_min: 0.0
+    y_max: 800.0
+    z_min: 20.0   # Higher altitude for efficiency
+    z_max: 40.0   # Maximum safe operating altitude
+    
+    # Aggressive exploration for rapid coverage
+    alpha: 2.0
+    visit_threshold: 8.0    # Larger threshold for faster waypoint completion
+    velocity: 15.0          # High speed for time efficiency
+    
+    # Timing optimized for area coverage
+    waypoint_generation_rate: 1.5    # Faster waypoint generation
+    trajectory_publish_rate: 20.0    # Higher rate for smooth flight
+    
+    # Enable automatic path generation
+    enable_path_generation: true
+
+# Expected flight characteristics:
+# - Total flight time: Multiple batteries required
+# - Coverage pattern: Long-range flights with efficient coverage
+# - Image overlap: Moderate (sufficient for analysis)
+# - Battery usage: High efficiency required
+```
+
+## Use Case
+
+This configuration is ideal for:
+
+- **Commercial farms**: 200+ acre operations
+- **Commodity crops**: Corn, soybeans, wheat, cotton
+- **Large-scale monitoring**: Crop health, yield estimation
+- **Insurance assessments**: Damage evaluation
+- **Supply chain**: Pre-harvest planning
+
+## Expected Performance
+
+- **Coverage area**: ~250 acres (100+ hectares)
+- **Flight time**: 60+ minutes (multiple batteries)
+- **Image resolution**: Moderate detail (20-40m altitude)
+- **Pattern type**: Aggressive exploration, long-range flights
+- **Waypoint density**: ~1 waypoint per 2500m²
+
+## Hardware Requirements
+
+- **UAV platform**: Large fixed-wing or heavy-lift multirotor
+- **Battery**: Multiple 20000mAh+ batteries or fuel system
+- **Camera**: Survey-grade with wide field of view
+- **GPS accuracy**: Differential GPS sufficient
+- **Communication**: Long-range telemetry required
+
+## Flight Planning Considerations
+
+```bash
+# Multiple flight segments (adjust boundaries for each segment)
+# Segment 1: Western section
+ros2 param set /bioinspired_path_generator x_min 0.0
+ros2 param set /bioinspired_path_generator x_max 250.0
+
+# Segment 2: Eastern section  
+ros2 param set /bioinspired_path_generator x_min 250.0
+ros2 param set /bioinspired_path_generator x_max 500.0
+
+# Weather adaptation (reduce altitude in wind)
+ros2 param set /bioinspired_path_generator z_max 25.0
+ros2 param set /bioinspired_path_generator velocity 10.0
+
+# Seasonal adjustment (lower altitude for detail during critical periods)
+ros2 param set /bioinspired_path_generator z_min 15.0
+ros2 param set /bioinspired_path_generator alpha 1.6
+```
+
+## Integration with Farm Management
+
+This configuration can be integrated with:
+
+- **Precision agriculture software**: Variable rate application
+- **Crop insurance platforms**: Automated damage assessment
+- **Supply chain systems**: Yield forecasting
+- **Weather monitoring**: Flight timing optimization

@@ -1,0 +1,100 @@
+# Greenhouse Inspection Configuration
+
+Configuration optimized for indoor and covered crop monitoring.
+
+```yaml
+/**:
+  ros__parameters:
+    # Greenhouse dimensions (30m x 60m typical commercial greenhouse)
+    x_min: 0.0
+    x_max: 30.0
+    y_min: 0.0
+    y_max: 60.0
+    z_min: 2.0    # Low altitude for detailed plant inspection
+    z_max: 4.0    # Below greenhouse ceiling
+    
+    # Very conservative exploration for confined space
+    alpha: 1.1
+    visit_threshold: 1.0   # High precision required
+    velocity: 2.0          # Slow speed for safety and detail
+    
+    # High-frequency updates for precise control
+    waypoint_generation_rate: 2.0    # Frequent waypoints for tight control
+    trajectory_publish_rate: 20.0    # Smooth flight in confined space
+    
+    # Enable automatic path generation
+    enable_path_generation: true
+
+# Special considerations for greenhouse operation:
+# - GPS may not be available (use vision/lidar positioning)
+# - Obstacle avoidance required (plants, support structures)
+# - High humidity may affect electronics
+# - Limited flight envelope
+```
+
+## Use Case
+
+This configuration is ideal for:
+
+- **Greenhouse operations**: Tomatoes, peppers, cucumbers, leafy greens
+- **Controlled environment agriculture**: Hydroponic/aeroponic systems
+- **Plant health monitoring**: Disease detection, growth tracking
+- **Harvest planning**: Fruit counting, ripeness assessment
+- **Climate monitoring**: Microclimate mapping
+- **Research facilities**: Plant phenotyping, breeding programs
+
+## Expected Performance
+
+- **Coverage area**: ~0.45 acres (1800m²)
+- **Flight time**: 10-15 minutes typical
+- **Image resolution**: Very high detail (2-4m altitude)
+- **Pattern type**: Systematic, methodical coverage
+- **Waypoint density**: ~1 waypoint per 10m²
+
+## Hardware Requirements
+
+- **UAV platform**: Small, stable quadcopter with prop guards
+- **Positioning**: Vision-based or RTK GPS (if structure allows)
+- **Camera**: High-resolution macro lens for plant detail
+- **Obstacle avoidance**: LiDAR or stereo cameras required
+- **Environmental protection**: Moisture-resistant components
+
+## Special Considerations
+
+### Indoor Positioning
+```bash
+# Configure for vision-based positioning when GPS unavailable
+# This requires additional sensors and setup beyond this configuration
+```
+
+### Safety Features
+```bash
+# Reduce speed further in crowded areas
+ros2 param set /bioinspired_path_generator velocity 1.0
+
+# Increase visit threshold for obstacle-rich environments
+ros2 param set /bioinspired_path_generator visit_threshold 1.5
+
+# Lower altitude for detailed plant inspection
+ros2 param set /bioinspired_path_generator z_max 3.0
+```
+
+### Seasonal Adjustments
+```bash
+# Adjust for plant growth (increase altitude as plants grow)
+# Early season (small plants)
+ros2 param set /bioinspired_path_generator z_min 1.5
+ros2 param set /bioinspired_path_generator z_max 2.5
+
+# Late season (mature plants)
+ros2 param set /bioinspired_path_generator z_min 3.0
+ros2 param set /bioinspired_path_generator z_max 4.5
+```
+
+## Integration Options
+
+- **Environmental sensors**: Temperature, humidity, CO2 monitoring
+- **Plant counting algorithms**: Automated crop inventory
+- **Disease detection**: Early warning systems
+- **Growth tracking**: Time-lapse monitoring
+- **Harvest robotics**: Coordination with picking robots

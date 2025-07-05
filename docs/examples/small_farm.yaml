@@ -1,0 +1,74 @@
+# Small Farm Monitoring Configuration
+
+Configuration optimized for small-scale agricultural operations (10-50 acres).
+
+```yaml
+/**:
+  ros__parameters:
+    # Small farm boundaries (50m x 75m = ~9 acres)
+    x_min: 0.0
+    x_max: 50.0
+    y_min: 0.0
+    y_max: 75.0
+    z_min: 8.0    # Low altitude for detailed imaging
+    z_max: 15.0   # Sufficient height for safety
+    
+    # Conservative exploration for thorough coverage
+    alpha: 1.3
+    visit_threshold: 3.0   # GPS accuracy consideration
+    velocity: 6.0          # Moderate speed for image quality
+    
+    # Timing optimized for detailed coverage
+    waypoint_generation_rate: 0.8   # Allow time for data collection
+    trajectory_publish_rate: 10.0   # Standard PX4 rate
+    
+    # Enable automatic path generation
+    enable_path_generation: true
+
+# Expected flight characteristics:
+# - Total flight time: ~15-20 minutes
+# - Coverage pattern: Systematic with local clustering
+# - Image overlap: High (suitable for photogrammetry)
+# - Battery usage: Conservative
+```
+
+## Use Case
+
+This configuration is ideal for:
+
+- **Family farms**: 10-50 acre properties
+- **Organic farming**: Detailed crop health monitoring
+- **Research plots**: University agricultural research
+- **High-value crops**: Vegetables, berries, specialty crops
+- **Precision agriculture**: Variable rate application mapping
+
+## Expected Performance
+
+- **Coverage area**: ~9 acres (3.6 hectares)
+- **Flight time**: 15-20 minutes typical
+- **Image resolution**: High detail (8-15m altitude)
+- **Pattern type**: Conservative exploration with good coverage
+- **Waypoint density**: ~1 waypoint per 100m²
+
+## Hardware Requirements
+
+- **UAV platform**: Small to medium quadcopter
+- **Battery**: 5000mAh+ for full coverage
+- **Camera**: 12MP+ for 2cm/pixel resolution
+- **GPS accuracy**: RTK recommended for precision
+
+## Customization Options
+
+```bash
+# Smaller field (adjust boundaries)
+ros2 param set /bioinspired_path_generator x_max 30.0
+ros2 param set /bioinspired_path_generator y_max 40.0
+
+# Higher precision (lower altitude)
+ros2 param set /bioinspired_path_generator z_min 5.0
+ros2 param set /bioinspired_path_generator z_max 10.0
+
+# Faster coverage (increase alpha and speed)
+ros2 param set /bioinspired_path_generator alpha 1.6
+ros2 param set /bioinspired_path_generator velocity 8.0
+```
