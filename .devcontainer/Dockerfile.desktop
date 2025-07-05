@@ -57,6 +57,9 @@ RUN git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && \
 RUN mkdir -p /workspaces/uav_control
 COPY ./src /workspaces/uav_control/src
 
+# Clone px4_msgs into src directory
+RUN git clone https://github.com/PX4/px4_msgs.git /workspaces/uav_control/src/px4_msgs
+
 RUN apt-get remove -y python3-scipy
 RUN pip3 install numpy==1.26.4 scipy==1.15.2
 RUN pip3 install seaborn matplotlib
