@@ -2,8 +2,10 @@
 
 A ROS 2 package for autonomous UAV path planning in agricultural environments using butterfly-inspired Lévy flight patterns for optimal field coverage and sensing.
 
-[![ROS 2](https://img.shields.io/badge/ROS-2%20Humble-blue)](https://docs.ros.org/en/humble/)
-[![Python](https://img.shields.io/badge/Python-3.8%2B-green)](https://www.python.org/)
+[![ROS 2](https://img.shields.io/badge/ROS-2%20Jazzy-blue)](https://docs.ros.org/en/jazzy/)
+[![Python](https://img.shields.io/badge/Python-3.12-green)](https://www.python.org/)
+[![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04%20LTS-orange)](https://ubuntu.com/)
+[![DevContainer](https://img.shields.io/badge/Dev-Container%20Ready-blue)](https://code.visualstudio.com/docs/remote/containers)
 [![License](https://img.shields.io/badge/License-See%20LICENSE-lightgrey)](LICENSE)
 
 ## Overview
@@ -14,7 +16,8 @@ This project implements a bio-inspired path planning algorithm for agricultural 
 
 Comprehensive documentation is available in the [`docs/`](docs/) folder:
 
-- **[Installation Guide](docs/installation.md)** - Step-by-step setup instructions
+- **[Installation Guide](docs/installation.md)** - Development container setup and manual installation
+- **[Development Container Guide](docs/devcontainer.md)** - Working with development containers
 - **[Quick Start Tutorial](docs/tutorials/quickstart.md)** - Get up and running in minutes
 - **[Code Reference](docs/api/)** - Detailed code documentation
 - **[Configuration Guide](docs/configuration.md)** - Parameter tuning and customization
@@ -23,21 +26,42 @@ Comprehensive documentation is available in the [`docs/`](docs/) folder:
 
 ## Quick Start
 
-1. **Installation**: Follow the [installation guide](docs/installation.md)
-2. **Basic Usage**: See the [quick start tutorial](docs/tutorials/quickstart.md)
-3. **Configuration**: Customize parameters using the [configuration guide](docs/configuration.md)
+This project uses **development containers** for a streamlined setup experience. All dependencies are pre-configured in the container environment.
 
-```bash
-# Build the package
-colcon build --packages-select uav_planning
-source install/setup.bash
+### Development Container Setup (Recommended)
 
-# Run the complete simulation
-ros2 launch uav_planning uav_simulation.launch.py
+1. **Prerequisites**: 
+   - [Visual Studio Code](https://code.visualstudio.com/)
+   - [Docker](https://docs.docker.com/get-docker/)
+   - [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
-# Or run just the path planner
-ros2 run uav_planning bioinspired_path_generator
-```
+2. **Launch**:
+   ```bash
+   # Clone the repository
+   git clone <repository-url> uav-agricultural-sensing
+   cd uav-agricultural-sensing
+   
+   # Open in VS Code and reopen in container
+   code .
+   # Command Palette (Ctrl+Shift+P) -> "Dev Containers: Reopen in Container"
+   ```
+
+3. **Build and Run**:
+   ```bash
+   # Everything is pre-configured in the container!
+   colcon build --packages-select uav_planning
+   source install/setup.bash
+   
+   # Run the complete simulation
+   ros2 launch uav_planning uav_simulation.launch.py
+   
+   # Or run just the path planner
+   ros2 run uav_planning bioinspired_path_generator
+   ```
+
+### Manual Installation
+
+For manual installation outside of the development container, see the [installation guide](docs/installation.md).
 
 ## Features
 

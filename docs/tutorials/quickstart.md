@@ -1,50 +1,71 @@
 # Quick Start Tutorial
 
-Get your UAV Agricultural Sensing system up and running in 15 minutes with this step-by-step tutorial.
+Get your UAV Agricultural Sensing system up and running in 15 minutes with this step-by-step tutorial using development containers.
 
 ## Prerequisites
 
 Before starting, ensure you have:
-- ✅ Completed the [Installation Guide](../installation.md)
-- ✅ Ubuntu 20.04+ with ROS 2 Humble
-- ✅ At least 8GB RAM available
+- ✅ [Visual Studio Code](https://code.visualstudio.com/) installed
+- ✅ [Docker](https://docs.docker.com/get-docker/) installed and running
+- ✅ [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) installed
+- ✅ At least 8GB RAM available for Docker
 - ✅ Working internet connection
 
-## Step 1: Verify Installation
+## Step 1: Set Up Development Container
 
-First, let's verify that everything is installed correctly:
+### Clone and Open Repository
 
 ```bash
+# Clone the repository
+git clone <repository-url> uav-agricultural-sensing
+cd uav-agricultural-sensing
+
+# Open in VS Code
+code .
+```
+
+### Launch Development Container
+
+1. **Open Command Palette**: Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
+2. **Select Container**: Type "Dev Containers: Reopen in Container"
+3. **Wait for Build**: The container will build automatically (first time takes 5-10 minutes)
+
+### Verify Container Environment
+
+Once the container is ready, open a terminal in VS Code and verify the environment:
+
+```bash
+# Check Ubuntu version
+lsb_release -a
+# Should output: Ubuntu 24.04 LTS
+
 # Check ROS 2 environment
 echo $ROS_DISTRO
-# Should output: humble
+# Should output: jazzy
+
+# Check Python version
+python3 --version
+# Should output: Python 3.12.x
 
 # Check if the package is available
 ros2 pkg list | grep uav_planning
 # Should output: uav_planning
-
-# Check PX4 installation
-ls ~/PX4-Autopilot/build/px4_sitl_default/bin/px4
-# Should show the PX4 binary
 ```
 
-If any of these commands fail, revisit the [Installation Guide](../installation.md).
+## Step 2: Build the Package
 
-## Step 2: Source Your Environment
-
-Make sure your ROS 2 environment is properly sourced:
+The development container comes with all dependencies pre-installed. Build the package:
 
 ```bash
-# Source ROS 2 and your workspace
-source /opt/ros/humble/setup.bash
-source ~/ros2_ws/install/setup.bash
+# Build the packages
+colcon build --packages-select uav_interfaces uav_planning
 
-# Set up PX4 environment
-export PX4_DIR=~/PX4-Autopilot
-source ~/PX4-Autopilot/Tools/simulation/gazebo-classic/setup_gazebo.bash ~/PX4-Autopilot ~/PX4-Autopilot/build/px4_sitl_default
+# Source the workspace
+source install/setup.bash
+
+# Verify installation
+ros2 run uav_planning bioinspired_path_generator --help
 ```
-
-**💡 Tip**: Add these lines to your `~/.bashrc` to automatically source them in every terminal.
 
 ## Step 3: Run Your First Simulation
 

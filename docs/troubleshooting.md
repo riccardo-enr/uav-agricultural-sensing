@@ -1,31 +1,87 @@
 # Troubleshooting Guide
 
-This guide helps you diagnose and fix common issues with the UAV Agricultural Sensing system.
+This guide helps you diagnose and fix common issues with the UAV Agricultural Sensing system in development containers and manual installations.
 
-## 🚨 Quick Diagnostic Checklist
+## � Development Container Issues
+
+### Container Won't Start
+
+**Problem**: VS Code fails to start the development container
+
+**Solution**:
+```bash
+# Check Docker status
+docker --version
+docker ps
+
+# Clear Docker cache and rebuild
+docker system prune -a
+docker volume prune
+
+# Try reopening in container again
+```
+
+### Container Performance Issues
+
+**Problem**: Container runs slowly or freezes
+
+**Solution**:
+```bash
+# Increase Docker memory (Docker Desktop)
+# Settings → Resources → Memory: 8GB+
+
+# On Linux, check system resources
+htop
+df -h
+
+# Restart Docker service
+sudo systemctl restart docker
+```
+
+### X11/GUI Issues
+
+**Problem**: Gazebo or GUI applications don't display
+
+**Solution**:
+```bash
+# On Linux host
+xhost +local:docker
+
+# Check display environment in container
+echo $DISPLAY
+echo $WAYLAND_DISPLAY
+
+# Test GUI forwarding
+xclock  # Should show a clock window
+```
+
+## �🚨 Quick Diagnostic Checklist
 
 When things aren't working, run through this checklist first:
 
 ### Environment Check
 ```bash
 # 1. Check ROS 2 environment
-echo $ROS_DISTRO  # Should be 'humble'
+echo $ROS_DISTRO  # Should be 'jazzy'
 echo $ROS_DOMAIN_ID  # Should be a number (or empty)
 
-# 2. Check package installation
+# 2. Check Python version
+python3 --version  # Should be 3.12.x
+
+# 3. Check package installation
 ros2 pkg list | grep uav_planning
 
-# 3. Check workspace sourcing
+# 4. Check workspace sourcing
 echo $AMENT_PREFIX_PATH | grep ros2_ws
 
-# 4. Check PX4 environment
+# 5. Check PX4 environment (if manual install)
 echo $PX4_DIR  # Should point to PX4-Autopilot directory
 ls $PX4_DIR/build/px4_sitl_default/bin/px4
 ```
 
 ### System Health Check
 ```bash
-# 5. Check running nodes
+# 6. Check running nodes
 ros2 node list
 
 # 6. Check active topics
@@ -464,7 +520,7 @@ Create a GitHub issue with:
 
 ## 📚 Additional Resources
 
-- [ROS 2 Troubleshooting](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Topics/Understanding-ROS2-Topics.html)
+- [ROS 2 Troubleshooting](https://docs.ros.org/en/jazzy/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Topics/Understanding-ROS2-Topics.html)
 - [PX4 User Guide](https://docs.px4.io/main/en/)
 - [Gazebo Classic Documentation](http://gazebosim.org/tutorials)
 - [Ubuntu Community Help](https://help.ubuntu.com/)

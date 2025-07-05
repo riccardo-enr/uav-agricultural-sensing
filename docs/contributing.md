@@ -86,8 +86,10 @@ Brief description of the bug
 3. Expected vs actual result
 
 ## Environment
-- OS: Ubuntu 22.04
-- ROS 2 version: Humble
+- OS: Ubuntu 24.04 LTS
+- ROS 2 version: Jazzy
+- Python version: 3.12.x
+- Development: Dev Container / Manual Install
 - Package version: v1.0.0
 - Hardware: Simulated/Real UAV
 
