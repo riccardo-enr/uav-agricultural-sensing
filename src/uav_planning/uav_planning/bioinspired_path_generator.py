@@ -1,0 +1,538 @@
+#!/usr/bin/env python3
+"""Bio-inspired path generator ROS 2 node using Levy flight patterns."""
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import (
+    QoSProfile,
+    ReliabilityPolicy,
+    HistoryPolicy,
+    DurabilityPolicy,
+)
+
+try:
+    from px4_msgs.msg import (
+        TrajectorySetpoint,
+        VehicleOdometry,
+        OffboardControlMode,
+        VehicleCommand,
+        VehicleStatus,
+    )
+except ImportError:
+    # Fallback if px4_msgs not available
+    TrajectorySetpoint = None
+    VehicleOdometry = None
+    OffboardControlMode = None
+    VehicleCommand = None
+    VehicleStatus = None
+from geometry_msgs.msg import Point
+from std_msgs.msg import Float64, Int32
+import numpy as np
+from .butterfly import ButterflyExplorer
+
+
+class BioinspiredPathGenerator(Node):
+    """
+    ROS 2 node that generates bio-inspired flight paths using Levy flight patterns
+    and publishes trajectory setpoints compatible with PX4 autopilot.
+    """
+
+    def __init__(self):
+        super().__init__("bioinspired_path_generator")
+
+        # Check if PX4 messages are available
+        if (
+            TrajectorySetpoint is None
+            or VehicleCommand is None
+            or VehicleStatus is None
+        ):
+            self.get_logger().warn(
+                "px4_msgs not available or incomplete. Install px4_msgs package for PX4 compatibility."
+            )
+            self.px4_available = False
+        else:
+            self.px4_available = True
+
+        # Declare parameters with default values
+        self.declare_parameter("x_min", -10.0)
+        self.declare_parameter("x_max", 10.0)
+        self.declare_parameter("y_min", -10.0)
+        self.declare_parameter("y_max", 10.0)
+        self.declare_parameter("z_min", 2.0)
+        self.declare_parameter("z_max", 8.0)
+        self.declare_parameter("alpha", 1.5)
+        self.declare_parameter("visit_threshold", 1.2)
+        self.declare_parameter("waypoint_generation_rate", 1.0)  # Hz
+        self.declare_parameter("trajectory_publish_rate", 10.0)  # Hz
+        self.declare_parameter("velocity", 5.0)  # m/s
+        self.declare_parameter("enable_path_generation", True)
+
+        # Get parameters
+        self._load_parameters()
+
+        # Initialize butterfly explorer
+        self._initialize_explorer()
+
+        # QoS profile for PX4 compatibility
+        qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+
+        # Publishers
+        if self.px4_available:
+            self.trajectory_setpoint_pub = self.create_publisher(
+                TrajectorySetpoint, "/fmu/in/trajectory_setpoint", qos_profile
+            )
+
+            self.offboard_control_mode_pub = self.create_publisher(
+                OffboardControlMode,
+                "/fmu/in/offboard_control_mode",
+                qos_profile,
+            )
+
+            if VehicleCommand is not None:
+                self.vehicle_command_pub = self.create_publisher(
+                    VehicleCommand,
+                    "/fmu/in/vehicle_command",
+                    qos_profile,
+                )
+            else:
+                self.vehicle_command_pub = None
+
+            # Subscribers
+            self.vehicle_odometry_sub = self.create_subscription(
+                VehicleOdometry,
+                "/fmu/out/vehicle_odometry",
+                self.vehicle_odometry_callback,
+                qos_profile,
+            )
+
+            if VehicleStatus is not None:
+                self.vehicle_status_sub = self.create_subscription(
+                    VehicleStatus,
+                    "/fmu/out/vehicle_status_v1",
+                    self.vehicle_status_callback,
+                    qos_profile,
+                )
+            else:
+                self.vehicle_status_sub = None
+        else:
+            self.trajectory_setpoint_pub = None
+            self.offboard_control_mode_pub = None
+            self.vehicle_command_pub = None
+            self.vehicle_odometry_sub = None
+            self.vehicle_status_sub = None
+
+        # Debug publishers using node-specific topics
+        self.current_waypoint_pub = self.create_publisher(
+            Point, "~/current_waypoint", 10
+        )
+
+        self.computation_time_pub = self.create_publisher(
+            Float64, "~/computation_time", 10
+        )
+
+        self.corners_remaining_pub = self.create_publisher(
+            Int32, "/debug/corners_remaining", 10
+        )
+
+        # State variables
+        self.current_position = np.array([0.0, 0.0, 0.0])
+        self.current_waypoint = None
+        self.waypoint_reached = True
+        self.vehicle_position_valid = False
+
+        # UAV state variables
+        self.vehicle_armed = False
+        self.offboard_mode_active = False
+        self.nav_state = 0
+        self.arming_state = 0
+        self.offboard_setpoint_counter = 0
+
+        # Timers
+        # Fallback timer for waypoint generation when odometry is not available
+        self.fallback_waypoint_timer = self.create_timer(
+            5.0,
+            self.fallback_waypoint_generation,
+        )
+
+        self.trajectory_timer = self.create_timer(
+            1.0 / self.trajectory_publish_rate, self.publish_trajectory_callback
+        )
+
+        self.offboard_timer = self.create_timer(
+            0.1,  # 10 Hz
+            self.publish_offboard_control_mode,
+        )
+
+        # Generate initial waypoint
+        if self.enable_path_generation:
+            self.generate_next_waypoint()
+
+        # Initialize state tracking variables
+        self._last_arming_state = None
+        self._last_nav_state = None
+
+        self.get_logger().info("Bioinspired path generator initialized")
+        self.get_logger().info(
+            f"Bounding box: X[{self.x_min}, {self.x_max}], "
+            f"Y[{self.y_min}, {self.y_max}], Z[{self.z_min}, {self.z_max}]"
+        )
+
+        if self.px4_available:
+            self.get_logger().info("Automatic arming and offboard mode enabled")
+
+    def _load_parameters(self):
+        """Load ROS parameters."""
+        self.x_min = (
+            self.get_parameter("x_min").get_parameter_value().double_value
+        )
+        self.x_max = (
+            self.get_parameter("x_max").get_parameter_value().double_value
+        )
+        self.y_min = (
+            self.get_parameter("y_min").get_parameter_value().double_value
+        )
+        self.y_max = (
+            self.get_parameter("y_max").get_parameter_value().double_value
+        )
+        self.z_min = (
+            self.get_parameter("z_min").get_parameter_value().double_value
+        )
+        self.z_max = (
+            self.get_parameter("z_max").get_parameter_value().double_value
+        )
+        self.alpha = (
+            self.get_parameter("alpha").get_parameter_value().double_value
+        )
+        self.visit_threshold = (
+            self.get_parameter("visit_threshold")
+            .get_parameter_value()
+            .double_value
+        )
+        self.waypoint_generation_rate = (
+            self.get_parameter("waypoint_generation_rate")
+            .get_parameter_value()
+            .double_value
+        )
+        self.trajectory_publish_rate = (
+            self.get_parameter("trajectory_publish_rate")
+            .get_parameter_value()
+            .double_value
+        )
+        self.velocity = (
+            self.get_parameter("velocity").get_parameter_value().double_value
+        )
+        self.enable_path_generation = (
+            self.get_parameter("enable_path_generation")
+            .get_parameter_value()
+            .bool_value
+        )
+
+    def _initialize_explorer(self):
+        """Initialize the butterfly explorer with current parameters."""
+        self.explorer = ButterflyExplorer(
+            x_min=self.x_min,
+            x_max=self.x_max,
+            y_min=self.y_min,
+            y_max=self.y_max,
+            z_min=self.z_min,
+            z_max=self.z_max,
+            alpha=self.alpha,
+            visit_threshold=self.visit_threshold,
+        )
+
+    def vehicle_odometry_callback(self, msg):
+        """Update current vehicle position from odometry and generate next waypoint if needed."""
+        self.current_position = np.array(
+            [
+                msg.position[1],
+                msg.position[0],
+                -msg.position[2],  # PX4 uses NED, convert Z to positive up
+            ]
+        )
+        self.vehicle_position_valid = True
+
+        # Check if current waypoint is reached and generate next one
+        if self.current_waypoint is not None:
+            distance = np.linalg.norm(
+                self.current_position - self.current_waypoint
+            )
+            if distance < self.visit_threshold:
+                if not self.waypoint_reached:  # Only log once per waypoint
+                    self.get_logger().info(
+                        f"Waypoint reached! Distance: {distance:.2f}m, "
+                        f"Position: [{self.current_position[0]:.2f}, "
+                        f"{self.current_position[1]:.2f}, {self.current_position[2]:.2f}]"
+                    )
+                self.waypoint_reached = True
+                # Generate next waypoint immediately when current one is reached
+                if self.enable_path_generation:
+                    self.generate_next_waypoint()
+        elif self.enable_path_generation:
+            # Generate first waypoint if none exists
+            self.generate_next_waypoint()
+
+    def generate_waypoint_callback(self):
+        """Legacy callback - now called generate_next_waypoint for clarity."""
+        self.generate_next_waypoint()
+
+    def generate_next_waypoint(self):
+        """Generate next waypoint using butterfly explorer."""
+        if not self.enable_path_generation:
+            return
+
+        start_time = self.get_clock().now()
+
+        # Generate next waypoint
+        waypoint = self.explorer.generate_next_waypoint()
+        self.current_waypoint = np.array(waypoint)
+        self.waypoint_reached = False
+
+        # Publish debug information
+        waypoint_msg = Point()
+        waypoint_msg.x = float(waypoint[0])
+        waypoint_msg.y = float(waypoint[1])
+        waypoint_msg.z = float(waypoint[2])
+        self.current_waypoint_pub.publish(waypoint_msg)
+
+        corners_msg = Int32()
+        corners_msg.data = len(self.explorer.unvisited_corners)
+        self.corners_remaining_pub.publish(corners_msg)
+
+        # Publish computation time
+        computation_time = (
+            self.get_clock().now() - start_time
+        ).nanoseconds / 1e9
+        time_msg = Float64()
+        time_msg.data = computation_time
+        self.computation_time_pub.publish(time_msg)
+
+        self.get_logger().info(
+            f"New waypoint generated: [{waypoint[0]:.2f}, {waypoint[1]:.2f}, {waypoint[2]:.2f}], "
+            f"Corners remaining: {len(self.explorer.unvisited_corners)}"
+        )
+
+    def publish_trajectory_callback(self):
+        """Publish trajectory setpoint for PX4."""
+        if (
+            self.current_waypoint is None
+            or not self.px4_available
+            or TrajectorySetpoint is None
+        ):
+            return
+
+        msg = TrajectorySetpoint()
+        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
+
+        # Position setpoint (NED frame for PX4)
+        msg.position[0] = float(self.current_waypoint[1])
+        msg.position[1] = float(self.current_waypoint[0])
+        msg.position[2] = -float(self.current_waypoint[2])
+
+        # Set velocity to NaN to let PX4 handle trajectory generation
+        msg.velocity[0] = float("nan")
+        msg.velocity[1] = float("nan")
+        msg.velocity[2] = float("nan")
+
+        # Yaw setpoint (face movement direction)
+        if self.vehicle_position_valid and self.current_waypoint is not None:
+            direction = self.current_waypoint - self.current_position
+            if (
+                np.linalg.norm(direction[:2]) > 0.1
+            ):  # Only consider horizontal direction
+                msg.yaw = float(np.arctan2(direction[1], direction[0]))
+            else:
+                msg.yaw = float("nan")  # Let PX4 handle yaw
+        else:
+            msg.yaw = float("nan")
+
+        if self.trajectory_setpoint_pub is not None:
+            self.trajectory_setpoint_pub.publish(msg)
+
+    def publish_offboard_control_mode(self):
+        """Publish offboard control mode for PX4 and handle auto arming."""
+        if not self.px4_available or OffboardControlMode is None:
+            return
+
+        msg = OffboardControlMode()
+        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
+        msg.position = True
+        msg.velocity = False
+        msg.acceleration = False
+        msg.attitude = False
+        msg.body_rate = False
+
+        if self.offboard_control_mode_pub is not None:
+            self.offboard_control_mode_pub.publish(msg)
+
+        # Handle automatic arming and offboard mode activation
+        self.auto_arm_and_offboard()
+
+    def get_exploration_stats(self):
+        """Get current exploration statistics."""
+        return self.explorer.get_exploration_stats()
+
+    def reset_exploration(self):
+        """Reset the exploration to start over."""
+        self._initialize_explorer()
+        self.current_waypoint = None
+        self.waypoint_reached = True
+        self.get_logger().info("Exploration reset")
+
+    def fallback_waypoint_generation(self):
+        """Fallback waypoint generation when odometry is not available."""
+        if not self.vehicle_position_valid and self.enable_path_generation:
+            self.get_logger().warn(
+                "No odometry available, using fallback waypoint generation"
+            )
+            self.generate_next_waypoint()
+
+    def vehicle_status_callback(self, msg):
+        """Update vehicle status information for arming and mode monitoring."""
+
+        # self.get_logger().info(
+        #     f"Vehicle status update: Arming state={msg.arming_state}, "
+        #     f"Navigation state={msg.nav_state}"
+        # )
+
+        self.vehicle_armed = msg.arming_state == 2  # ARMING_STATE_ARMED
+        self.nav_state = msg.nav_state
+        self.arming_state = msg.arming_state
+
+        # Check if offboard mode is active (NAV_STATE_OFFBOARD = 14)
+        self.offboard_mode_active = msg.nav_state == 14
+
+        # Log significant state changes
+        if (
+            hasattr(self, "_last_arming_state")
+            and self._last_arming_state != msg.arming_state
+        ):
+            arming_states = {
+                1: "DISARMED",
+                2: "ARMED",
+            }
+            self.get_logger().info(
+                f"Arming state changed: {arming_states.get(msg.arming_state, f'UNKNOWN({msg.arming_state})')}"
+            )
+        self._last_arming_state = msg.arming_state
+
+        if (
+            hasattr(self, "_last_nav_state")
+            and self._last_nav_state != msg.nav_state
+        ):
+            self.get_logger().info(f"Navigation state changed: {msg.nav_state}")
+        self._last_nav_state = msg.nav_state
+
+    def arm_vehicle(self):
+        """Send arm command to the vehicle."""
+        if not self.px4_available or VehicleCommand is None:
+            return
+
+        msg = VehicleCommand()
+        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
+        msg.param1 = 1.0  # Arm
+        msg.param2 = 0.0
+        msg.param3 = 0.0
+        msg.param4 = 0.0
+        msg.param5 = 0.0
+        msg.param6 = 0.0
+        msg.param7 = 0.0
+        msg.command = 400  # VEHICLE_CMD_COMPONENT_ARM_DISARM
+        msg.target_system = 1
+        msg.target_component = 1
+        msg.source_system = 1
+        msg.source_component = 1
+        msg.from_external = True
+
+        if self.vehicle_command_pub is not None:
+            self.vehicle_command_pub.publish(msg)
+            self.get_logger().info("Arm command sent")
+
+    def set_offboard_mode(self):
+        """Send command to switch to offboard mode."""
+        if not self.px4_available or VehicleCommand is None:
+            return
+
+        msg = VehicleCommand()
+        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
+        msg.param1 = 1.0  # Enable
+        msg.param2 = 6.0  # OFFBOARD mode
+        msg.param3 = 0.0
+        msg.param4 = 0.0
+        msg.param5 = 0.0
+        msg.param6 = 0.0
+        msg.param7 = 0.0
+        msg.command = 176  # VEHICLE_CMD_DO_SET_MODE
+        msg.target_system = 1
+        msg.target_component = 1
+        msg.source_system = 1
+        msg.source_component = 1
+        msg.from_external = True
+
+        if self.vehicle_command_pub is not None:
+            self.vehicle_command_pub.publish(msg)
+            self.get_logger().info("Offboard mode command sent")
+
+    def auto_arm_and_offboard(self):
+        """Automatically arm the vehicle and set offboard mode."""
+        if not self.px4_available:
+            return
+
+        # Send offboard control mode messages for a few cycles before arming
+        self.offboard_setpoint_counter += 1
+
+        # Need to send offboard setpoints for some time before arming
+        if self.offboard_setpoint_counter >= 10:
+            if self.arming_state != 2:
+                self.arm_vehicle()
+            elif self.vehicle_armed and not self.offboard_mode_active:
+                self.set_offboard_mode()
+
+    def get_vehicle_status(self):
+        """Get current vehicle status for debugging."""
+        return {
+            "armed": self.vehicle_armed,
+            "offboard_active": self.offboard_mode_active,
+            "nav_state": self.nav_state,
+            "arming_state": self.arming_state,
+            "setpoint_counter": self.offboard_setpoint_counter,
+            "px4_available": self.px4_available,
+        }
+
+
+def main(args=None):
+    """Main function to run the bioinspired path generator node."""
+    rclpy.init(args=args)
+
+    node = None
+    try:
+        node = BioinspiredPathGenerator()
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if node is not None:
+            stats = node.get_exploration_stats()
+            if stats:
+                node.get_logger().info("=== Final Exploration Statistics ===")
+                node.get_logger().info(
+                    f"Corners visited: {stats.get('corners_visited', 0)}/{node.explorer.total_corners}"
+                )
+                node.get_logger().info(
+                    f"Completion rate: {stats.get('completion_rate', 0):.1%}"
+                )
+                node.get_logger().info(
+                    f"Total steps: {stats.get('total_steps', 0)}"
+                )
+
+            node.destroy_node()
+
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

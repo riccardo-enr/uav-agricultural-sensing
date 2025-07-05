@@ -3,9 +3,14 @@
 <package format="3">
   <name>uav_planning</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>UAV planning package with bio-inspired path generation</description>
   <maintainer email="riccardo.enrico97@gmail.com">riccardo</maintainer>
   <license>TODO: License declaration</license>
+
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>px4_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
