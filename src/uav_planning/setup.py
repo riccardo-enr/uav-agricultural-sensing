@@ -29,6 +29,8 @@ setup(
     entry_points={
         "console_scripts": [
             "bioinspired_planner = uav_planning.bioinspired_path_generator:main",
+            "bioinspired_planner_action = uav_planning.bioinspired_path_generator_action:main",
+            "path_generator_client = uav_planning.path_generator_client:main",
         ],
     },
 )
