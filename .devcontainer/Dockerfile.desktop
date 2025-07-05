@@ -46,19 +46,22 @@ RUN git clone https://github.com/PX4/PX4-Autopilot.git --branch=main --recursive
 # COPY ./px4_mods/CMakeLists.txt /workspaces/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes/
 # COPY ./px4_mods/4150_gz_x500_custom /workspaces/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes/
 
-RUN bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
+# Debugging steps for PX4 setup script
+RUN echo "--- Listing contents of PX4-Autopilot/Tools/setup/ ---" && \
+    ls -la ./PX4-Autopilot/Tools/setup/ && \
+    echo "--- Ensuring ubuntu.sh is executable ---" && \
+    chmod +x ./PX4-Autopilot/Tools/setup/ubuntu.sh && \
+    echo "--- Running ubuntu.sh with verbose output ---" && \
+    bash -x ./PX4-Autopilot/Tools/setup/ubuntu.sh
 
 # Micro XRCE-DDS Agent
 RUN git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && \
     cd Micro-XRCE-DDS-Agent && mkdir build && cd build && \
     cmake .. && make && sudo make install && sudo ldconfig /usr/local/lib/
 
-# Copy package
-RUN mkdir -p /workspaces/uav_control
-COPY ./src /workspaces/uav_control/src
-
-# Clone px4_msgs into src directory
-RUN git clone https://github.com/PX4/px4_msgs.git /workspaces/uav_control/src/px4_msgs
+# Clone px4_msgs into src directory only if it doesn't exist
+RUN [ ! -d "/workspaces/uav-agricultural-sensing/src/px4_msgs" ] && \
+    git clone https://github.com/PX4/px4_msgs.git /workspaces/uav_control/src/px4_msgs || true
 
 RUN apt-get remove -y python3-scipy
 RUN pip3 install numpy==1.26.4 scipy==1.15.2
