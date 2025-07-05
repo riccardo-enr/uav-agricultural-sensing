@@ -263,18 +263,19 @@ class BioinspiredPathGenerator(Node):
         if self.current_waypoint is not None:
             distance = np.linalg.norm(
                 self.current_position - self.current_waypoint
-            )        if distance < self.visit_threshold:
-            if not self.waypoint_reached:
-                self.get_logger().info(
-                    f"Waypoint reached! Distance: {distance:.2f}m, "
-                    f"Position: [{self.current_position[0]:.2f}, "
-                    f"{self.current_position[1]:.2f}, {self.current_position[2]:.2f}]"
-                )
-            self.waypoint_reached = True
-            if self.enable_path_generation:
-                self.generate_next_waypoint()
-    elif self.enable_path_generation:
-        self.generate_next_waypoint()
+            )
+            if distance < self.visit_threshold:
+                if not self.waypoint_reached:
+                    self.get_logger().info(
+                        f"Waypoint reached! Distance: {distance:.2f}m, "
+                        f"Position: [{self.current_position[0]:.2f}, "
+                        f"{self.current_position[1]:.2f}, {self.current_position[2]:.2f}]"
+                    )
+                self.waypoint_reached = True
+                if self.enable_path_generation:
+                    self.generate_next_waypoint()
+        elif self.enable_path_generation:
+            self.generate_next_waypoint()
 
     def vehicle_status_callback(self, msg):
         """Update vehicle status information for arming and mode monitoring."""

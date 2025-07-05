@@ -30,7 +30,11 @@ setup(
         "console_scripts": [
             "bioinspired_planner = uav_planning.bioinspired_path_generator:main",
             "bioinspired_planner_action = uav_planning.bioinspired_path_generator_action:main",
+            "path_generator_action = uav_planning.path_generator_action:main",
+            "uav_controller = uav_planning.uav_controller:main",
             "path_generator_client = uav_planning.path_generator_client:main",
+            "architecture_test = uav_planning.architecture_test:main",
+            "uav_monitor = uav_planning.uav_monitor:main",
         ],
     },
 )
