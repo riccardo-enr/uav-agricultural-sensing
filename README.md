@@ -19,6 +19,7 @@ Comprehensive documentation is available in the [`docs/`](docs/) folder:
 - **[Installation Guide](docs/installation.md)** - Development container setup and manual installation
 - **[Development Container Guide](docs/devcontainer.md)** - Working with development containers
 - **[Quick Start Tutorial](docs/tutorials/quickstart.md)** - Get up and running in minutes
+- **[Launch Files Guide](docs/launch_files.md)** - Using launch configurations for different scenarios
 - **[Code Reference](docs/api/)** - Detailed code documentation
 - **[Configuration Guide](docs/configuration.md)** - Parameter tuning and customization
 - **[Examples](docs/examples/)** - Sample configurations and use cases
@@ -56,8 +57,13 @@ This project uses **development containers** for a streamlined setup experience.
    ros2 launch uav_planning uav_simulation.launch.py
    
    # Or run just the path planner
-   ros2 run uav_planning bioinspired_path_generator
+   ros2 launch uav_planning path_planner.launch.py
+   
+   # Or try a demo configuration
+   ros2 launch uav_planning demo.launch.py mode:=full_simulation
    ```
+
+> 📖 **Pro Tip**: See the [Launch Files Guide](docs/launch_files.md) for detailed information about all available launch configurations and parameters.
 
 ### Manual Installation
 
@@ -65,10 +71,8 @@ For manual installation outside of the development container, see the [installat
 
 ## Features
 
-## Features
-
 - **🦋 Butterfly-Inspired Lévy Flight**: Generates natural, efficient exploration patterns
-- **🔗 ROS 2 Integration**: Full compatibility with ROS 2 ecosystem and PX4/MAVROS
+- **🔗 ROS 2 Integration**: Full compatibility with ROS 2 ecosystem and PX4
 - **🗺️ Configurable Boundaries**: Flexible field boundary constraints
 - **⚡ Real-time Path Generation**: Dynamic waypoint generation with adjustable parameters
 - **📊 Visualization Tools**: Comprehensive plotting and analysis capabilities
@@ -129,7 +133,7 @@ If you use this work in your research, please cite:
 
 ## Support & Contact
 
-- 📧 **Email**: riccardo.enrico97@gmail.com
+- 📧 **Email**: giorgia.giacalone@polito.it, riccardo.enrico@polito.it
 - 🐛 **Issues**: [GitHub Issues](https://github.com/your-username/uav-agricultural-sensing/issues)
 - 📖 **Documentation**: [docs/](docs/)
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/your-username/uav-agricultural-sensing/discussions)

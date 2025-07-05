@@ -101,19 +101,63 @@ ros2 launch uav_planning path_planner.launch.py \
     visit_threshold:=5.0
 ```
 
-### 3. Demo Launch (`demo.launch.py`)
+### 3. Demo Configurations (`demo.launch.py`)
 
-**Purpose**: Demonstration configuration with predefined scenarios for testing and showcasing the system.
+**Purpose**: Demonstrates different usage scenarios with predefined parameters for testing and showcasing the system.
 
 **Usage**:
 ```bash
-ros2 launch uav_planning demo.launch.py
+ros2 launch uav_planning demo.launch.py mode:=<mode_name>
 ```
 
-**Scenarios Available**:
-- Small field demo (quick demonstration)
-- Algorithm comparison (different alpha values)
-- Performance benchmark
+**Available Modes**:
+
+| Mode                  | Area Size | Use Case            | Description                                       |
+| --------------------- | --------- | ------------------- | ------------------------------------------------- |
+| `planner_only`        | 15×15m    | Development/Testing | Basic path planning for quick iteration           |
+| `full_simulation`     | 25×25m    | Complete Demo       | Full simulation with moderate area                |
+| `agricultural_survey` | 200×150m  | Production          | Large area coverage for agricultural applications |
+
+**Examples**:
+```bash
+# Basic path planning for development
+ros2 launch uav_planning demo.launch.py mode:=planner_only
+
+# Complete simulation demo
+ros2 launch uav_planning demo.launch.py mode:=full_simulation
+
+# Large-scale agricultural survey
+ros2 launch uav_planning demo.launch.py mode:=agricultural_survey
+```
+
+## ROS 2 Topics Reference
+
+### Published Topics
+
+| Topic                           | Type                           | Description                                     |
+| ------------------------------- | ------------------------------ | ----------------------------------------------- |
+| `~/current_waypoint`            | `geometry_msgs/PointStamped`   | Current target waypoint being pursued           |
+| `~/computation_time`            | `std_msgs/Float64`             | Time taken to compute the current waypoint (ms) |
+| `/debug/corners_remaining`      | `std_msgs/Int32`               | Number of unvisited exploration corners         |
+| `/fmu/in/trajectory_setpoint`   | `px4_msgs/TrajectorySetpoint`  | PX4 position commands                           |
+| `/fmu/in/offboard_control_mode` | `px4_msgs/OffboardControlMode` | PX4 control mode settings                       |
+
+### Subscribed Topics
+
+| Topic                       | Type                       | Description                                              |
+| --------------------------- | -------------------------- | -------------------------------------------------------- |
+| `/fmu/out/vehicle_odometry` | `px4_msgs/VehicleOdometry` | Vehicle position feedback (triggers waypoint generation) |
+
+**Note**: All topics with `~` prefix use the node's namespace. For example, if the node runs as `/bioinspired_path_generator`, the full topic would be `/bioinspired_path_generator/current_waypoint`.
+
+## Key Features Summary
+
+✅ **Odometry-based waypoint generation**: Uses UAV position feedback instead of fixed timeouts  
+✅ **Configurable exploration area**: Set custom bounds for the survey area  
+✅ **Bio-inspired Lévy flight patterns**: Efficient exploration using butterfly-inspired movements  
+✅ **PX4 integration**: Direct compatibility with PX4 autopilot  
+✅ **Fallback mechanisms**: Continues working even without odometry  
+✅ **Comprehensive logging**: Detailed information about waypoint generation and completion  
 
 ## Launch File Customization
 
