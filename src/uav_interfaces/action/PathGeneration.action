@@ -1,0 +1,39 @@
+# PathGeneration.action - Bio-inspired path generation action for UAV exploration
+
+# Goal: Parameters for path generation
+float64 x_min -10.0
+float64 x_max 10.0
+float64 y_min -10.0
+float64 y_max 10.0
+float64 z_min 2.0
+float64 z_max 8.0
+float64 alpha 1.5
+float64 visit_threshold 1.2
+float64 velocity 5.0
+bool enable_auto_arm true
+uint32 max_waypoints 1000  # Maximum number of waypoints to generate (0 = unlimited)
+float64 exploration_time 0.0  # Maximum exploration time in seconds (0 = unlimited)
+
+---
+
+# Result: Final exploration statistics
+uint32 total_waypoints_generated
+uint32 corners_visited
+uint32 total_corners
+float64 completion_rate
+float64 total_exploration_time
+bool exploration_completed
+string completion_reason
+
+---
+
+# Feedback: Current exploration status
+geometry_msgs/Point current_waypoint
+geometry_msgs/Point current_position
+uint32 waypoints_generated
+uint32 corners_remaining
+float64 current_completion_rate
+float64 elapsed_time
+bool vehicle_armed
+bool offboard_mode_active
+string status_message
