@@ -153,7 +153,6 @@ class BioinspiredPathGenerator(Node):
         self.offboard_setpoint_counter = 0
 
         # Timers
-        # Fallback timer for waypoint generation when odometry is not available
         self.fallback_waypoint_timer = self.create_timer(
             5.0,
             self.fallback_waypoint_generation,
@@ -245,13 +244,17 @@ class BioinspiredPathGenerator(Node):
             visit_threshold=self.visit_threshold,
         )
 
+    # ========================
+    # CALLBACK FUNCTIONS
+    # ========================
+    
     def vehicle_odometry_callback(self, msg):
         """Update current vehicle position from odometry and generate next waypoint if needed."""
         self.current_position = np.array(
             [
                 msg.position[1],
                 msg.position[0],
-                -msg.position[2],  # PX4 uses NED, convert Z to positive up
+                -msg.position[2],  # PX4 uses NED, convert to positive up
             ]
         )
         self.vehicle_position_valid = True
@@ -260,62 +263,63 @@ class BioinspiredPathGenerator(Node):
         if self.current_waypoint is not None:
             distance = np.linalg.norm(
                 self.current_position - self.current_waypoint
+            )        if distance < self.visit_threshold:
+            if not self.waypoint_reached:
+                self.get_logger().info(
+                    f"Waypoint reached! Distance: {distance:.2f}m, "
+                    f"Position: [{self.current_position[0]:.2f}, "
+                    f"{self.current_position[1]:.2f}, {self.current_position[2]:.2f}]"
+                )
+            self.waypoint_reached = True
+            if self.enable_path_generation:
+                self.generate_next_waypoint()
+    elif self.enable_path_generation:
+        self.generate_next_waypoint()
+
+    def vehicle_status_callback(self, msg):
+        """Update vehicle status information for arming and mode monitoring."""
+        self.vehicle_armed = msg.arming_state == 2  # ARMING_STATE_ARMED
+        self.nav_state = msg.nav_state
+        self.arming_state = msg.arming_state
+
+        self.offboard_mode_active = msg.nav_state == 14  # NAV_STATE_OFFBOARD
+
+        if (
+            hasattr(self, "_last_arming_state")
+            and self._last_arming_state != msg.arming_state
+        ):
+            arming_states = {
+                1: "DISARMED",
+                2: "ARMED",
+            }
+            self.get_logger().info(
+                f"Arming state changed: {arming_states.get(msg.arming_state, f'UNKNOWN({msg.arming_state})')}"
             )
-            if distance < self.visit_threshold:
-                if not self.waypoint_reached:  # Only log once per waypoint
-                    self.get_logger().info(
-                        f"Waypoint reached! Distance: {distance:.2f}m, "
-                        f"Position: [{self.current_position[0]:.2f}, "
-                        f"{self.current_position[1]:.2f}, {self.current_position[2]:.2f}]"
-                    )
-                self.waypoint_reached = True
-                # Generate next waypoint immediately when current one is reached
-                if self.enable_path_generation:
-                    self.generate_next_waypoint()
-        elif self.enable_path_generation:
-            # Generate first waypoint if none exists
+        self._last_arming_state = msg.arming_state
+
+        if (
+            hasattr(self, "_last_nav_state")
+            and self._last_nav_state != msg.nav_state
+        ):
+            self.get_logger().info(f"Navigation state changed: {msg.nav_state}")
+        self._last_nav_state = msg.nav_state
+
+    def fallback_waypoint_generation(self):
+        """Fallback waypoint generation when odometry is not available."""
+        if not self.vehicle_position_valid and self.enable_path_generation:
+            self.get_logger().warn(
+                "No odometry available, using fallback waypoint generation"
+            )
             self.generate_next_waypoint()
 
     def generate_waypoint_callback(self):
         """Legacy callback - now called generate_next_waypoint for clarity."""
         self.generate_next_waypoint()
 
-    def generate_next_waypoint(self):
-        """Generate next waypoint using butterfly explorer."""
-        if not self.enable_path_generation:
-            return
-
-        start_time = self.get_clock().now()
-
-        # Generate next waypoint
-        waypoint = self.explorer.generate_next_waypoint()
-        self.current_waypoint = np.array(waypoint)
-        self.waypoint_reached = False
-
-        # Publish debug information
-        waypoint_msg = Point()
-        waypoint_msg.x = float(waypoint[0])
-        waypoint_msg.y = float(waypoint[1])
-        waypoint_msg.z = float(waypoint[2])
-        self.current_waypoint_pub.publish(waypoint_msg)
-
-        corners_msg = Int32()
-        corners_msg.data = len(self.explorer.unvisited_corners)
-        self.corners_remaining_pub.publish(corners_msg)
-
-        # Publish computation time
-        computation_time = (
-            self.get_clock().now() - start_time
-        ).nanoseconds / 1e9
-        time_msg = Float64()
-        time_msg.data = computation_time
-        self.computation_time_pub.publish(time_msg)
-
-        self.get_logger().info(
-            f"New waypoint generated: [{waypoint[0]:.2f}, {waypoint[1]:.2f}, {waypoint[2]:.2f}], "
-            f"Corners remaining: {len(self.explorer.unvisited_corners)}"
-        )
-
+    # ========================
+    # PUBLISHER FUNCTIONS
+    # ========================
+    
     def publish_trajectory_callback(self):
         """Publish trajectory setpoint for PX4."""
         if (
@@ -328,25 +332,20 @@ class BioinspiredPathGenerator(Node):
         msg = TrajectorySetpoint()
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
 
-        # Position setpoint (NED frame for PX4)
-        msg.position[0] = float(self.current_waypoint[1])
+        msg.position[0] = float(self.current_waypoint[1])  # NED frame for PX4
         msg.position[1] = float(self.current_waypoint[0])
         msg.position[2] = -float(self.current_waypoint[2])
 
-        # Set velocity to NaN to let PX4 handle trajectory generation
-        msg.velocity[0] = float("nan")
+        msg.velocity[0] = float("nan")  # Let PX4 handle trajectory generation
         msg.velocity[1] = float("nan")
         msg.velocity[2] = float("nan")
 
-        # Yaw setpoint (face movement direction)
         if self.vehicle_position_valid and self.current_waypoint is not None:
             direction = self.current_waypoint - self.current_position
-            if (
-                np.linalg.norm(direction[:2]) > 0.1
-            ):  # Only consider horizontal direction
+            if np.linalg.norm(direction[:2]) > 0.1:
                 msg.yaw = float(np.arctan2(direction[1], direction[0]))
             else:
-                msg.yaw = float("nan")  # Let PX4 handle yaw
+                msg.yaw = float("nan")
         else:
             msg.yaw = float("nan")
 
@@ -369,63 +368,62 @@ class BioinspiredPathGenerator(Node):
         if self.offboard_control_mode_pub is not None:
             self.offboard_control_mode_pub.publish(msg)
 
-        # Handle automatic arming and offboard mode activation
         self.auto_arm_and_offboard()
 
-    def get_exploration_stats(self):
-        """Get current exploration statistics."""
-        return self.explorer.get_exploration_stats()
+    def publish_debug_info(self, waypoint, computation_time):
+        """Publish debug information for waypoint generation."""
+        waypoint_msg = Point()
+        waypoint_msg.x = float(waypoint[0])
+        waypoint_msg.y = float(waypoint[1])
+        waypoint_msg.z = float(waypoint[2])
+        self.current_waypoint_pub.publish(waypoint_msg)
 
-    def reset_exploration(self):
-        """Reset the exploration to start over."""
-        self._initialize_explorer()
-        self.current_waypoint = None
-        self.waypoint_reached = True
-        self.get_logger().info("Exploration reset")
+        corners_msg = Int32()
+        corners_msg.data = len(self.explorer.unvisited_corners)
+        self.corners_remaining_pub.publish(corners_msg)
 
-    def fallback_waypoint_generation(self):
-        """Fallback waypoint generation when odometry is not available."""
-        if not self.vehicle_position_valid and self.enable_path_generation:
-            self.get_logger().warn(
-                "No odometry available, using fallback waypoint generation"
-            )
-            self.generate_next_waypoint()
+        time_msg = Float64()
+        time_msg.data = computation_time
+        self.computation_time_pub.publish(time_msg)
 
-    def vehicle_status_callback(self, msg):
-        """Update vehicle status information for arming and mode monitoring."""
+    # ========================
+    # CONTROL LOGIC FUNCTIONS
+    # ========================
+    
+    def generate_next_waypoint(self):
+        """Generate next waypoint using butterfly explorer."""
+        if not self.enable_path_generation:
+            return
 
-        # self.get_logger().info(
-        #     f"Vehicle status update: Arming state={msg.arming_state}, "
-        #     f"Navigation state={msg.nav_state}"
-        # )
+        start_time = self.get_clock().now()
 
-        self.vehicle_armed = msg.arming_state == 2  # ARMING_STATE_ARMED
-        self.nav_state = msg.nav_state
-        self.arming_state = msg.arming_state
+        waypoint = self.explorer.generate_next_waypoint()
+        self.current_waypoint = np.array(waypoint)
+        self.waypoint_reached = False
 
-        # Check if offboard mode is active (NAV_STATE_OFFBOARD = 14)
-        self.offboard_mode_active = msg.nav_state == 14
+        computation_time = (
+            self.get_clock().now() - start_time
+        ).nanoseconds / 1e9
 
-        # Log significant state changes
-        if (
-            hasattr(self, "_last_arming_state")
-            and self._last_arming_state != msg.arming_state
-        ):
-            arming_states = {
-                1: "DISARMED",
-                2: "ARMED",
-            }
-            self.get_logger().info(
-                f"Arming state changed: {arming_states.get(msg.arming_state, f'UNKNOWN({msg.arming_state})')}"
-            )
-        self._last_arming_state = msg.arming_state
+        self.publish_debug_info(waypoint, computation_time)
 
-        if (
-            hasattr(self, "_last_nav_state")
-            and self._last_nav_state != msg.nav_state
-        ):
-            self.get_logger().info(f"Navigation state changed: {msg.nav_state}")
-        self._last_nav_state = msg.nav_state
+        self.get_logger().info(
+            f"New waypoint generated: [{waypoint[0]:.2f}, {waypoint[1]:.2f}, {waypoint[2]:.2f}], "
+            f"Corners remaining: {len(self.explorer.unvisited_corners)}"
+        )
+
+    def auto_arm_and_offboard(self):
+        """Automatically arm the vehicle and set offboard mode."""
+        if not self.px4_available:
+            return
+
+        self.offboard_setpoint_counter += 1
+
+        if self.offboard_setpoint_counter >= 10:
+            if self.arming_state != 2:
+                self.arm_vehicle()
+            elif self.vehicle_armed and not self.offboard_mode_active:
+                self.set_offboard_mode()
 
     def arm_vehicle(self):
         """Send arm command to the vehicle."""
@@ -434,7 +432,7 @@ class BioinspiredPathGenerator(Node):
 
         msg = VehicleCommand()
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-        msg.param1 = 1.0  # Arm
+        msg.param1 = 1.0
         msg.param2 = 0.0
         msg.param3 = 0.0
         msg.param4 = 0.0
@@ -459,7 +457,7 @@ class BioinspiredPathGenerator(Node):
 
         msg = VehicleCommand()
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-        msg.param1 = 1.0  # Enable
+        msg.param1 = 1.0
         msg.param2 = 6.0  # OFFBOARD mode
         msg.param3 = 0.0
         msg.param4 = 0.0
@@ -477,20 +475,20 @@ class BioinspiredPathGenerator(Node):
             self.vehicle_command_pub.publish(msg)
             self.get_logger().info("Offboard mode command sent")
 
-    def auto_arm_and_offboard(self):
-        """Automatically arm the vehicle and set offboard mode."""
-        if not self.px4_available:
-            return
+    def reset_exploration(self):
+        """Reset the exploration to start over."""
+        self._initialize_explorer()
+        self.current_waypoint = None
+        self.waypoint_reached = True
+        self.get_logger().info("Exploration reset")
 
-        # Send offboard control mode messages for a few cycles before arming
-        self.offboard_setpoint_counter += 1
+    # ========================
+    # UTILITY FUNCTIONS
+    # ========================
 
-        # Need to send offboard setpoints for some time before arming
-        if self.offboard_setpoint_counter >= 10:
-            if self.arming_state != 2:
-                self.arm_vehicle()
-            elif self.vehicle_armed and not self.offboard_mode_active:
-                self.set_offboard_mode()
+    def get_exploration_stats(self):
+        """Get current exploration statistics."""
+        return self.explorer.get_exploration_stats()
 
     def get_vehicle_status(self):
         """Get current vehicle status for debugging."""
