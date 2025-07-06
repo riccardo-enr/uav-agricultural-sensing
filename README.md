@@ -81,8 +81,6 @@ For manual installation outside of the development container, see the [installat
 
 ## System Architecture
 
-## System Architecture
-
 The system consists of several key components:
 
 1. **🧠 Core Algorithm** (`butterfly.py`): Pure Python implementation of Lévy flight patterns
