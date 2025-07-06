@@ -4,10 +4,9 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 
-# Import the core logic from the other file
-# This assumes 'butterfly_generator.py' is in the same directory
-# or in a location Python can find (like your ROS 2 package's install space).
-from butterfly_generator import ButterflyGenerator
+# Import the core logic from the algorithms module
+# Import the ButterflyGenerator from the reorganized module structure
+from ..algorithms.butterfly_generator import ButterflyGenerator
 
 
 class ButterflyPathNode(Node):

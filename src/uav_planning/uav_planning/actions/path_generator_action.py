@@ -14,7 +14,7 @@ from std_srvs.srv import SetBool
 from uav_interfaces.action import PathGeneration
 import numpy as np
 import time
-from .butterfly import ButterflyExplorer
+from ..algorithms.butterfly import ButterflyExplorer
 
 
 class BioinspiredPathGeneratorActionServer(Node):

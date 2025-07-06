@@ -34,7 +34,7 @@ from geometry_msgs.msg import Point
 from uav_interfaces.action import PathGeneration
 import numpy as np
 import time
-from .butterfly import ButterflyExplorer
+from ..algorithms.butterfly import ButterflyExplorer
 
 
 class BioinspiredPathGeneratorActionServer(Node):
