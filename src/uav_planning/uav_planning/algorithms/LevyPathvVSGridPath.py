@@ -286,7 +286,7 @@ def plot_trajectories(explorers_data, bounds):
         ax.set_ylim(y_min, y_max)
         ax.set_zlim(z_min, z_max)
     
-    plt.tight_layout()
+    #plt.tight_layout()
     plt.show()
 
 
