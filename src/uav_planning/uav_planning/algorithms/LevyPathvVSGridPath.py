@@ -9,14 +9,14 @@ from mpl_toolkits.mplot3d import Axes3D
 @dataclass
 class ExplorationMetrics:
     """Metrics for comparing exploration algorithms"""
-    corners_visited: int
+    vertices_visited: int
     total_time: float
     total_distance: float
     completion_rate: float
     time_to_first_corner: float
     time_to_last_corner: float
-    coverage_efficiency: float  # corners per unit distance
-    time_efficiency: float      # corners per unit time
+    coverage_efficiency: float  # vertices per unit distance
+    time_efficiency: float      # vertices per unit time
     path_smoothness: float      # measure of path continuity
     search_variance: float      # spatial distribution variance
 
@@ -29,8 +29,8 @@ class BaseExplorer:
         self.visit_threshold = visit_threshold
         self.drone_speed = drone_speed
         
-        # Define corners
-        self.corners = np.array([
+        # Define vertices
+        self.vertices = np.array([
             [x_min, y_min, z_min], [x_min, y_min, z_max],
             [x_min, y_max, z_min], [x_min, y_max, z_max],
             [x_max, y_min, z_min], [x_max, y_min, z_max],
@@ -39,7 +39,7 @@ class BaseExplorer:
         
         # Initialize state
         self.current_pos = np.array([(x_min + x_max) / 2, (y_min + y_max) / 2, (z_min + z_max) / 2])
-        self.visited_corners = [False] * len(self.corners)
+        self.visited_vertices = [False] * len(self.vertices)
         self.corner_visit_times = {}
         self.current_time = 0.0
         self.total_distance = 0.0
@@ -50,18 +50,18 @@ class BaseExplorer:
         return np.clip(pos, [self.x_min, self.y_min, self.z_min], [self.x_max, self.y_max, self.z_max])
     
     def check_corner_visits(self, pos):
-        """Check if any corners are visited"""
-        for i, corner in enumerate(self.corners):
-            if not self.visited_corners[i] and np.linalg.norm(pos - corner) < self.visit_threshold:
-                self.visited_corners[i] = True
+        """Check if any vertices are visited"""
+        for i, corner in enumerate(self.vertices):
+            if not self.visited_vertices[i] and np.linalg.norm(pos - corner) < self.visit_threshold:
+                self.visited_vertices[i] = True
                 self.corner_visit_times[i] = self.current_time
                 return True
         return False
     
     def get_metrics(self) -> ExplorationMetrics:
         """Calculate exploration metrics"""
-        visited_count = sum(self.visited_corners)
-        completion_rate = visited_count / len(self.corners)
+        visited_count = sum(self.visited_vertices)
+        completion_rate = visited_count / len(self.vertices)
         
         # Time metrics
         visit_times = list(self.corner_visit_times.values())
@@ -79,7 +79,7 @@ class BaseExplorer:
         search_variance = self.calculate_search_variance()
         
         return ExplorationMetrics(
-            corners_visited=visited_count,
+            vertices_visited=visited_count,
             total_time=self.current_time,
             total_distance=self.total_distance,
             completion_rate=completion_rate,
@@ -140,24 +140,24 @@ class LevyFlightExplorer(BaseExplorer):
     
     def generate_next_waypoint(self, time_remaining):
         """Generate next waypoint using Lévy flight with corner biasing"""
-        unvisited_indices = [i for i in range(len(self.corners)) if not self.visited_corners[i]]
+        unvisited_indices = [i for i in range(len(self.vertices)) if not self.visited_vertices[i]]
         
         if unvisited_indices:
             # Find nearest unvisited corner
-            distances = [np.linalg.norm(self.corners[i] - self.current_pos) for i in unvisited_indices]
+            distances = [np.linalg.norm(self.vertices[i] - self.current_pos) for i in unvisited_indices]
             nearest_idx = unvisited_indices[np.argmin(distances)]
-            nearest_corner = self.corners[nearest_idx]
+            nearest_corner = self.vertices[nearest_idx]
             
             # Adaptive bias based on progress
-            progress = (len(self.corners) - len(unvisited_indices)) / len(self.corners)
-            bias_weight = 0.2 + 1.8 * progress  # Increase bias as more corners are found
+            progress = (len(self.vertices) - len(unvisited_indices)) / len(self.vertices)
+            bias_weight = 0.2 + 1.8 * progress  # Increase bias as more vertices are found
             
             # Lévy step with bias
             step = self.levy_step()
             bias = (nearest_corner - self.current_pos) * bias_weight * 0.1
             new_pos = self.current_pos + step + bias
         else:
-            # Pure Lévy flight after all corners found
+            # Pure Lévy flight after all vertices found
             step = self.levy_step()
             new_pos = self.current_pos + step
         
@@ -188,7 +188,7 @@ class GridSearchExplorer(BaseExplorer):
         return next_pos
 
 
-def plot_trajectories(explorers_data, bounds):
+def plot_trajectories(explorers_data, bounds, title):
     """
     Plot 3D trajectories for comparison between different exploration algorithms
 
@@ -200,7 +200,7 @@ def plot_trajectories(explorers_data, bounds):
     fig = plt.figure(figsize=(20, 6))
     
     x_min, x_max, y_min, y_max, z_min, z_max = bounds
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b'] 
+    #colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b'] 
     
     # Create subplots for each algorithm
     num_explorers = len(explorers_data)
@@ -222,7 +222,8 @@ def plot_trajectories(explorers_data, bounds):
                     ax.plot([x_traj[j], x_traj[j+1]], 
                            [y_traj[j], y_traj[j+1]], 
                            [z_traj[j], z_traj[j+1]], 
-                           color=colors[i % len(colors)], 
+                           #color=colors[i % len(colors)], 
+                           color='gray', 
                            alpha=0.5, linewidth=0.6)
             
             # Plot trajectory points
@@ -234,20 +235,20 @@ def plot_trajectories(explorers_data, bounds):
                        shrink=0.5, location='left', pad=0.001)
         
         # Plot corner points
-        corners = explorer.corners
-        visited_corners = explorer.visited_corners
+        vertices = explorer.vertices
+        visited_vertices = explorer.visited_vertices
         
-        # Plot unvisited corners in red
-        unvisited_corners = corners[np.array([not v for v in visited_corners])]
-        if len(unvisited_corners) > 0:
-            ax.scatter(unvisited_corners[:, 0], unvisited_corners[:, 1], unvisited_corners[:, 2], 
-                      c='red', s=100, marker='s', alpha=0.8, label='Unvisited corners')
+        # Plot unvisited vertices in red
+        unvisited_vertices = vertices[np.array([not v for v in visited_vertices])]
+        if len(unvisited_vertices) > 0:
+            ax.scatter(unvisited_vertices[:, 0], unvisited_vertices[:, 1], unvisited_vertices[:, 2], 
+                      c='red', s=100, marker='s', alpha=0.8, label='Unvisited vertices')
         
-        # Plot visited corners in green
-        visited_corners_pos = corners[np.array(visited_corners)]
-        if len(visited_corners_pos) > 0:
-            ax.scatter(visited_corners_pos[:, 0], visited_corners_pos[:, 1], visited_corners_pos[:, 2], 
-                      c='green', s=100, marker='s', alpha=0.8, label='Visited corners')
+        # Plot visited vertices in green
+        visited_vertices_pos = vertices[np.array(visited_vertices)]
+        if len(visited_vertices_pos) > 0:
+            ax.scatter(visited_vertices_pos[:, 0], visited_vertices_pos[:, 1], visited_vertices_pos[:, 2], 
+                      c='green', s=100, marker='s', alpha=0.8, label='Visited vertices')
         
         # Plot starting position
         start_pos = explorer.waypoints[0] if explorer.waypoints else {'x': 0, 'y': 0, 'z': 0}
@@ -271,9 +272,9 @@ def plot_trajectories(explorers_data, bounds):
                 [y_min, y_min, y_max, y_max, y_min], 
                 [z_max, z_max, z_max, z_max, z_max], 'k--', alpha=0.3)
         # Vertical edges
-        for corner in corners:
-            ax.plot([corner[0], corner[0]], [corner[1], corner[1]], 
-                   [z_min, z_max], 'k--', alpha=0.3)
+      #  for corner in vertices:
+       #     ax.plot([corner[0], corner[0]], [corner[1], corner[1]], 
+        #           [z_min, z_max], 'k--', alpha=0.3)
         
         # Set labels and title
         ax.set_xlabel('X (m)')
@@ -308,40 +309,40 @@ def plot_trajectory_comparison_2d(explorers_data, bounds, title="2D Trajectory P
         (0, 1, 'XY Plane', 'X (m)', 'Y (m)'),
         (0, 2, 'XZ Plane', 'X (m)', 'Z (m)'),
         (1, 2, 'YZ Plane', 'Y (m)', 'Z (m)'),
-        (None, None, 'Coverage Over Time', 'Time (s)', 'Corners Visited')
+        (None, None, 'Coverage Over Time', 'Time (s)', 'vertices Visited')
     ]
     
     for proj_idx, (dim1, dim2, proj_name, xlabel, ylabel) in enumerate(projections):
         ax = axes[proj_idx // 2, proj_idx % 2]
         
         if proj_name == 'Coverage Over Time':
-            # Plot corners visited over time
+            # Plot vertices visited over time
             for i, (name, explorer) in enumerate(explorers_data.items()):
                 if len(explorer.waypoints) > 0:
                     times = [wp['t'] for wp in explorer.waypoints]
-                    corners_found = []
+                    vertices_found = []
                     count = 0
                     for wp in explorer.waypoints:
-                        # Check how many corners were found at this time
+                        # Check how many vertices were found at this time
                         pos = np.array([wp['x'], wp['y'], wp['z']])
-                        for corner in explorer.corners:
+                        for corner in explorer.vertices:
                             if np.linalg.norm(pos - corner) < explorer.visit_threshold:
                                 count += 1
                                 break
-                        corners_found.append(min(count, 8))
+                        vertices_found.append(min(count, 8))
                     
                     # Use actual corner visit times for more accurate plot
                     visit_times = sorted(explorer.corner_visit_times.values())
-                    cumulative_corners = list(range(1, len(visit_times) + 1))
+                    cumulative_vertices = list(range(1, len(visit_times) + 1))
                     
                     if visit_times:
-                        ax.plot([0] + visit_times, [0] + cumulative_corners, 
+                        ax.plot([0] + visit_times, [0] + cumulative_vertices, 
                                color=colors[i % len(colors)], marker='o', 
                                linewidth=2, markersize=4, label=name)
                     
             ax.set_ylim(0, 8)
             ax.set_ylabel(ylabel)
-            ax.grid(True, alpha=0.3)
+           # ax.grid(True, alpha=0.3)
             ax.legend()
             
         else:
@@ -365,19 +366,19 @@ def plot_trajectory_comparison_2d(explorers_data, bounds, title="2D Trajectory P
                               marker='s', edgecolors='black', linewidth=1, 
                               zorder=5)
                 
-                # Plot corners
-                corners = explorer.corners
-                visited_corners = explorer.visited_corners
+                # Plot vertices
+                vertices = explorer.vertices
+                visited_vertices = explorer.visited_vertices
                 
-                # Unvisited corners
-                unvisited = corners[np.array([not v for v in visited_corners])]
+                # Unvisited vertices
+                unvisited = vertices[np.array([not v for v in visited_vertices])]
                 if len(unvisited) > 0:
                     ax.scatter(unvisited[:, dim1], unvisited[:, dim2], 
                               c='red', s=60, marker='s', alpha=0.8, 
                               edgecolors='darkred', linewidth=1)
                 
-                # Visited corners
-                visited = corners[np.array(visited_corners)]
+                # Visited vertices
+                visited = vertices[np.array(visited_vertices)]
                 if len(visited) > 0:
                     ax.scatter(visited[:, dim1], visited[:, dim2], 
                               c='green', s=60, marker='s', alpha=0.8, 
@@ -387,7 +388,7 @@ def plot_trajectory_comparison_2d(explorers_data, bounds, title="2D Trajectory P
             bounds_map = {0: (x_min, x_max), 1: (y_min, y_max), 2: (z_min, z_max)}
             ax.set_xlim(bounds_map[dim1])
             ax.set_ylim(bounds_map[dim2])
-            ax.grid(True, alpha=0.3)
+           # ax.grid(True, alpha=0.3)
             ax.legend()
         
         ax.set_title(proj_name)
@@ -458,11 +459,11 @@ def run_trajectory_comparison(max_time=600, drone_speed=0.2):
             explorer.waypoints.append({'x': next_pos[0], 'y': next_pos[1], 'z': next_pos[2], 't': current_time})
         
         # Print results
-        visited = sum(explorer.visited_corners)
+        visited = sum(explorer.visited_vertices)
         metrics = explorer.get_metrics()
-        print(f"  {name}: {visited}/8 corners ({visited/8*100:.1f}%) in {current_time:.1f}s")
+        print(f"  {name}: {visited}/8 vertices ({visited/8*100:.1f}%) in {current_time:.1f}s")
         print(f"    Distance: {explorer.total_distance:.1f}m")
-        print(f"    Efficiency: {metrics.coverage_efficiency:.4f} corners/m")
+        print(f"    Efficiency: {metrics.coverage_efficiency:.4f} vertices/m")
     
     return explorers, bounds
 
@@ -527,8 +528,8 @@ def run_comparison_study(max_time=600, drone_speed=0.2, num_trials=10):
             metrics = explorer.get_metrics()
             results[name].append(metrics)
             
-            visited = sum(explorer.visited_corners)
-            print(f"  {name}: {visited}/8 corners ({visited/8*100:.1f}%)")
+            visited = sum(explorer.visited_vertices)
+            print(f"  {name}: {visited}/8 vertices ({visited/8*100:.1f}%)")
     
     return results
 
@@ -536,7 +537,7 @@ def run_comparison_study(max_time=600, drone_speed=0.2, num_trials=10):
 def analyze_results(results):
     """Analyze and visualize comparison results"""
     algorithms = list(results.keys())
-    metrics_names = ['corners_visited', 'completion_rate', 'coverage_efficiency', 
+    metrics_names = ['vertices_visited', 'completion_rate', 'coverage_efficiency', 
                      'time_efficiency', 'path_smoothness', 'search_variance']
     
     # Calculate statistics
@@ -557,10 +558,10 @@ def analyze_results(results):
     axes = axes.flatten()
     
     metric_labels = {
-        'corners_visited': 'Corners Visited',
+        'vertices_visited': 'vertices Visited',
         'completion_rate': 'Completion Rate (%)',
-        'coverage_efficiency': 'Coverage Efficiency (corners/m)',
-        'time_efficiency': 'Time Efficiency (corners/s)',
+        'coverage_efficiency': 'Coverage Efficiency (vertices/m)',
+        'time_efficiency': 'Time Efficiency (vertices/s)',
         'path_smoothness': 'Path Smoothness (rad)',
         'search_variance': 'Search Variance'
     }
@@ -608,7 +609,7 @@ def analyze_results(results):
     print("="*80)
     
     # Rank algorithms by key metrics
-    key_metrics = ['corners_visited', 'completion_rate', 'coverage_efficiency', 'time_efficiency']
+    key_metrics = ['vertices_visited', 'completion_rate', 'coverage_efficiency', 'time_efficiency']
     
     for metric in key_metrics:
         print(f"\n{metric_labels[metric]} (best to worst):")
@@ -628,14 +629,14 @@ def main():
     # Run trajectory comparison first
     print("\n1. TRAJECTORY COMPARISON")
     print("=" * 30)
-    explorers_data, bounds = run_trajectory_comparison(max_time=1000, drone_speed=0.5)
+    explorers_data, bounds = run_trajectory_comparison(max_time=600, drone_speed=0.5)
     
     # Plot trajectories
-    plot_trajectories(explorers_data, bounds)
-    plot_trajectory_comparison_2d(explorers_data, bounds, "2D Trajectory Projections")
+    plot_trajectories(explorers_data, bounds, "3D Exploration Trajectories")
+   # plot_trajectory_comparison_2d(explorers_data, bounds, "2D Trajectory Projections")
     
 
-    results = run_comparison_study(max_time=600, drone_speed=0.2, num_trials=100)
+    results = run_comparison_study(max_time=600, drone_speed=0.5, num_trials=100)
     stats = analyze_results(results)
     return results, stats
 
