@@ -1,0 +1,13 @@
+# StateTransition.srv - Service to request state transitions
+
+# Request
+uint8 target_state
+string reason
+
+---
+
+# Response
+bool success
+string message
+uint8 previous_state
+uint8 current_state

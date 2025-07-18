@@ -9,7 +9,7 @@ float64 z_min 2.0
 float64 z_max 8.0
 float64 alpha 1.5
 float64 visit_threshold 1.2
-float64 velocity 5.0
+float64 velocity 0.5
 bool enable_auto_arm true
 uint32 max_waypoints 1000  # Maximum number of waypoints to generate (0 = unlimited)
 float64 exploration_time 0.0  # Maximum exploration time in seconds (0 = unlimited)

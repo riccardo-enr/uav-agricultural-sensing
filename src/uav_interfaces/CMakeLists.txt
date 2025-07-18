@@ -14,6 +14,8 @@ find_package(geometry_msgs REQUIRED)
 # Generate action interfaces
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/PathGeneration.action"
+  "msg/UAVState.msg"
+  "srv/StateTransition.srv"
   DEPENDENCIES builtin_interfaces geometry_msgs
 )
 
