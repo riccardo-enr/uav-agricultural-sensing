@@ -71,11 +71,10 @@ For manual installation outside of the development container, see the [installat
 
 ## Features
 
-- **🦋 Butterfly-Inspired Lévy Flight**: Generates natural, efficient exploration patterns
+- **🦋 Bio-Inspired Path**: Generates natural, efficient exploration coverage path planning
 - **🔗 ROS 2 Integration**: Full compatibility with ROS 2 ecosystem and PX4
 - **🗺️ Configurable Boundaries**: Flexible field boundary constraints
-- **⚡ Real-time Path Generation**: Dynamic waypoint generation with adjustable parameters
-- **📊 Visualization Tools**: Comprehensive plotting and analysis capabilities
+- **📊 Real World Testing**: Comprehensive Sensor Integration and Data Plotting
 - **🌾 Agricultural Focus**: Optimized for crop monitoring and field surveying applications
 - **🛩️ PX4 Compatibility**: Direct integration with PX4 autopilot via px4_msgs
 
@@ -83,7 +82,7 @@ For manual installation outside of the development container, see the [installat
 
 The system consists of several key components:
 
-1. **🧠 Core Algorithm** (`butterfly.py`): Pure Python implementation of Lévy flight patterns
+1. **🧠 Core Algorithm** (`butterfly.py`): Pure Python implementation of Lévy flight path planning
 2. **🎯 Path Generator** (`bioinspired_path_generator.py`): ROS 2 node with PX4 integration
 3. **📡 Communication Layer**: Direct PX4 communication via px4_msgs
 4. **🎮 Launch System**: Automated simulation and real-flight configurations
@@ -131,7 +130,7 @@ If you use this work in your research, please cite:
 
 ## Support & Contact
 
-- 📧 **Email**: giorgia.giacalone@polito.it, riccardo.enrico@polito.it
+- 📧 **Email**: riccardo.enrico@polito.it, giorgia.giacalone@polito.it
 - 🐛 **Issues**: [GitHub Issues](https://github.com/your-username/uav-agricultural-sensing/issues)
 - 📖 **Documentation**: [docs/](docs/)
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/your-username/uav-agricultural-sensing/discussions)
