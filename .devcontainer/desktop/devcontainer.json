@@ -33,7 +33,6 @@
                 "betwo.b2-catkin-tools",
                 "DotJoshJohnson.xml",
                 "ms-azuretools.vscode-docker",
-                "ms-iot.vscode-ros",
                 "ms-python.python",
                 "ms-vscode.cpptools",
                 "redhat.vscode-yaml",
@@ -44,7 +43,8 @@
                 "charliermarsh.ruff",
                 "hyperoot.settings-organizer",
                 "Gruntfuggly.todo-tree",
-                "johnpapa.vscode-peacock"
+                "johnpapa.vscode-peacock",
+                "Ranch-Hand-Robotics.rde-ros-2"
             ]
         }
     }

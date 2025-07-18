@@ -16,25 +16,49 @@ RUN rm -f /usr/share/keyrings/ros-archive-keyring.gpg && \
     rm -f /etc/apt/sources.list.d/ros2.list && \
     apt-get update
 
-# Install required dependencies
-RUN apt-get install -y --no-install-recommends \
+# Install basic dependencies first
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     cmake \
     build-essential \
     wget \
+    sudo \
     python3-tk \
     python3-setuptools \
+    ffmpeg \
+    tree \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python GUI packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-tk \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ROS-specific packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-jazzy-plotjuggler-ros \
     ros-jazzy-ros-gz \
     ros-jazzy-ros-gz-bridge \
-    ffmpeg \
-    tree \
-    sudo \
     && rm -rf /var/lib/apt/lists/*
+
+# Install OpenGL and GUI support packages (with error handling)
+RUN apt-get update && \
+    (apt-get install -y --no-install-recommends \
+    mesa-utils \
+    libgl1-mesa-dri \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    freeglut3-dev \
+    libegl1-mesa-dev \
+    libx11-dev \
+    libxext-dev \
+    libxrender-dev \
+    x11-apps || echo "Some OpenGL packages may not be available") && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m pip config set global.break-system-packages true
 
-# PX4-Autopilot (full build for CUDA)
+# PX4-Autopilot
 RUN git clone https://github.com/PX4/PX4-Autopilot.git --branch=main --recursive && \
     mkdir -p /workspaces/PX4-Autopilot/src/modules/uxrce_dds_client/ && \
     mkdir -p /workspaces/PX4-Autopilot/Tools/simulation/gz/models/ && \
@@ -54,6 +78,39 @@ RUN echo "--- Listing contents of PX4-Autopilot/Tools/setup/ ---" && \
     echo "--- Running ubuntu.sh with verbose output ---" && \
     bash -x ./PX4-Autopilot/Tools/setup/ubuntu.sh
 
+# ===== GAZEBO SITL STANDALONE MODE SETUP =====
+# Set up simulation-gazebo script for standalone mode
+RUN mkdir -p /opt/simulation-tools
+WORKDIR /opt/simulation-tools
+
+# Fetch the simulation-gazebo script
+RUN wget https://raw.githubusercontent.com/PX4/PX4-gazebo-models/main/simulation-gazebo \
+    && chmod +x simulation-gazebo
+
+# Create simulation-gazebo directory structure
+RUN mkdir -p /root/.simulation-gazebo
+
+# Environment variables for standalone mode
+ENV PX4_GZ_STANDALONE=1
+ENV PX4_HOME=/workspaces/PX4-Autopilot
+
+# Add convenience scripts for standalone mode
+RUN echo '#!/bin/bash\ncd /workspaces/PX4-Autopilot\nPX4_GZ_STANDALONE=1 make px4_sitl gz_x500' > /usr/local/bin/px4-standalone \
+    && chmod +x /usr/local/bin/px4-standalone
+
+RUN echo '#!/bin/bash\ncd /opt/simulation-tools\npython3 simulation-gazebo "$@"' > /usr/local/bin/gazebo-sim \
+    && chmod +x /usr/local/bin/gazebo-sim
+
+# Create script to run both in separate terminals (for convenience)
+RUN echo '#!/bin/bash\necho "Starting PX4 SITL in standalone mode..."\necho "Run '\''gazebo-sim'\'' in another terminal to start Gazebo simulation"\ncd /workspaces/PX4-Autopilot\nPX4_GZ_STANDALONE=1 make px4_sitl gz_x500' > /usr/local/bin/px4-standalone-wait \
+    && chmod +x /usr/local/bin/px4-standalone-wait
+
+# # Expose ports for MAVLink communication
+# EXPOSE 14540 14550 18570
+# ===== END STANDALONE MODE SETUP =====
+
+WORKDIR /workspaces
+
 # Micro XRCE-DDS Agent
 RUN git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && \
     cd Micro-XRCE-DDS-Agent && mkdir build && cd build && \
@@ -63,9 +120,32 @@ RUN git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && \
 RUN [ ! -d "/workspaces/uav-agricultural-sensing/src/px4_msgs" ] && \
     git clone https://github.com/PX4/px4_msgs.git /workspaces/uav_control/src/px4_msgs || true
 
-RUN apt-get remove -y python3-scipy
+RUN apt-get remove -y python3-scipy || true
 RUN pip3 install numpy==1.26.4 scipy==1.15.2
-RUN pip3 install seaborn matplotlib
+RUN pip3 install seaborn matplotlib pyqtgraph PyQt5
+RUN pip3 install PyOpenGL PyOpenGL_accelerate
+
+# ===== ADD SUDO PRIVILEGES FOR ROS USER =====
+# Add ros user to sudo group and configure passwordless sudo
+RUN usermod -aG sudo ros
+RUN echo 'ros ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+# Create necessary directories for GUI applications with proper permissions
+RUN mkdir -p /run/user/1000 && chown ros:ros /run/user/1000 && chmod 0700 /run/user/1000
+RUN mkdir -p /home/ros/.cache && chown -R ros:ros /home/ros
+RUN mkdir -p /home/ros/.config && chown -R ros:ros /home/ros/.config
+
+# Set environment variables for GUI applications
+ENV QT_QPA_PLATFORM=xcb
+ENV QT_X11_NO_MITSHM=1
+ENV MESA_GL_VERSION_OVERRIDE=3.3
+ENV MESA_GLSL_VERSION_OVERRIDE=330
+ENV XDG_RUNTIME_DIR=/run/user/1000
+# ===== END SUDO SETUP =====
+
+# ===== SETUP STANDALONE MODE FOR ROS USER =====
+# Create simulation-gazebo directory for ros user
+RUN mkdir -p /home/ros/.simulation-gazebo && chown -R ros:ros /home/ros/.simulation-gazebo
 
 # Set ownership for ros user
 RUN chown -R ros:ros /workspaces
@@ -77,5 +157,23 @@ USER ros
 # Setup bash environment for ros user
 RUN echo "\nsource /opt/ros/jazzy/setup.bash" >> /home/ros/.bashrc && \
     echo "if [ -f /workspaces/uav_control/install/setup.bash ]; then source /workspaces/uav_control/install/setup.bash; fi" >> /home/ros/.bashrc
+
+# Add ROS 2 workspace sourcing to bashrc
+RUN echo "source /workspaces/uav-agri-sensing/install/setup.bash" >> /home/ros/.bashrc
+
+# Add GUI environment setup to bashrc
+RUN echo "export QT_QPA_PLATFORM=xcb" >> /home/ros/.bashrc && \
+    echo "export QT_X11_NO_MITSHM=1" >> /home/ros/.bashrc && \
+    echo "export XDG_RUNTIME_DIR=/run/user/1000" >> /home/ros/.bashrc
+
+# Add standalone mode environment variables for ros user
+RUN echo "export PX4_GZ_STANDALONE=1" >> /home/ros/.bashrc && \
+    echo "export PX4_HOME=/workspaces/PX4-Autopilot" >> /home/ros/.bashrc
+
+# Add convenience aliases for standalone mode
+RUN echo "alias px4-standalone='cd /workspaces/PX4-Autopilot && PX4_GZ_STANDALONE=1 make px4_sitl gz_x500'" >> /home/ros/.bashrc && \
+    echo "alias gazebo-sim='cd /opt/simulation-tools && python3 simulation-gazebo'" >> /home/ros/.bashrc && \
+    echo "alias px4-clean='cd /workspaces/PX4-Autopilot && make distclean'" >> /home/ros/.bashrc
+# ===== END STANDALONE MODE SETUP FOR ROS USER =====
 
 CMD ["/bin/bash"]

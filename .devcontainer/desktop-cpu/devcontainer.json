@@ -44,7 +44,8 @@
                 "charliermarsh.ruff",
                 "hyperoot.settings-organizer",
                 "Gruntfuggly.todo-tree",
-                "johnpapa.vscode-peacock"
+                "johnpapa.vscode-peacock",
+                "Ranch-Hand-Robotics.rde-ros-2"
             ]
         }
     }
