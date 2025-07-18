@@ -10,7 +10,7 @@ This project uses **development containers** for a streamlined setup experience.
 - **ROS 2 Jazzy Jalisco** - Latest ROS 2 LTS distribution
 - **Python 3.12** - Modern Python with latest features
 - **PX4 Autopilot** - Latest stable release
-- **Gazebo Garden** - Advanced simulation environment
+- **Gazebo Sunflower Field** - Simulation environment
 
 ## �📚 Documentation Structure
 
