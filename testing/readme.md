@@ -1,0 +1,2 @@
+- SHT3x Temperature and Humidity Sensor Driver by Senserion.
+- DataPlotting.py
