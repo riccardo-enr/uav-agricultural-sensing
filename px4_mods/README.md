@@ -1,3 +1,3 @@
 - Sunflower CAD: https://free3d.com/3d-model/-sunflower-v1--572329.html
 - Blender World
-- PX4 Custom World Files (meshes, .sdf)
+- PX4 Custom World Files (meshes, .sdf, .config)
