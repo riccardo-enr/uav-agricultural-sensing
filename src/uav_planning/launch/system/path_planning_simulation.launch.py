@@ -57,6 +57,13 @@ def generate_launch_description():
         output="screen",
     )
 
+    bioinspired_planner_client = Node(
+        package="uav_planning",
+        executable="bioinspired_path_generator_client",
+        name="bioinspired_path_generator_client",
+        output="screen",
+    )
+
     # UAV State Machine
     state_machine = Node(
         package="uav_planning",
@@ -64,26 +71,6 @@ def generate_launch_description():
         name="uav_state_machine",
         output="screen",
     )
-
-    # UAV Monitor GUI (delayed start to allow system initialization)
-    # uav_monitor = TimerAction(
-    #     period=LaunchConfiguration("monitor_delay"),
-    #     actions=[
-    #         Node(
-    #             package="uav_planning",
-    #             executable="uav_monitor",
-    #             name="uav_monitor_gui",
-    #             output="screen",
-    #             parameters=[
-    #                 {
-    #                     "use_sim_time": True,
-    #                     "max_history_points": 500,
-    #                     "update_rate_hz": 10.0,
-    #                 }
-    #             ],
-    #         )
-    #     ],
-    # )
 
     return LaunchDescription(
         [
@@ -97,6 +84,7 @@ def generate_launch_description():
             # UAV system components
             uav_controller,
             bioinspired_planner,
+            bioinspired_planner_client,
             state_machine,
             # GUI Monitor (delayed)
             # uav_monitor,

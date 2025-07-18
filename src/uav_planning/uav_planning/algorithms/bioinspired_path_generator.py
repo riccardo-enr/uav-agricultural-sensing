@@ -28,7 +28,7 @@ except ImportError:
 from geometry_msgs.msg import Point
 from std_msgs.msg import Float64, Int32
 import numpy as np
-from .butterfly import ButterflyExplorer
+from .butterfly import TimeBasedButterflyExplorer as ButterflyExplorer
 
 
 class BioinspiredPathGenerator(Node):
@@ -64,8 +64,12 @@ class BioinspiredPathGenerator(Node):
         self.declare_parameter("visit_threshold", 1.2)
         self.declare_parameter("waypoint_generation_rate", 1.0)  # Hz
         self.declare_parameter("trajectory_publish_rate", 10.0)  # Hz
+        self.declare_parameter("uav_speed_limit", 0.5)  # m/s
         self.declare_parameter("velocity", 5.0)  # m/s
         self.declare_parameter("enable_path_generation", True)
+        # Add time-based exploration parameters
+        self.declare_parameter("exploration_duration", 600.0)  # seconds
+        self.declare_parameter("drone_speed", 0.5)  # m/s
 
         # Get parameters
         self._load_parameters()
@@ -139,11 +143,24 @@ class BioinspiredPathGenerator(Node):
             Int32, "/debug/corners_remaining", 10
         )
 
+        self.exploration_time_pub = self.create_publisher(
+            Float64, "/debug/exploration_time", 10
+        )
+
+        self.completion_rate_pub = self.create_publisher(
+            Float64, "/debug/completion_rate", 10
+        )
+
+        self.time_remaining_pub = self.create_publisher(
+            Float64, "/debug/time_remaining", 10
+        )
+
         # State variables
         self.current_position = np.array([0.0, 0.0, 0.0])
         self.current_waypoint = None
         self.waypoint_reached = True
         self.vehicle_position_valid = False
+        self.exploration_start_time = None
 
         # UAV state variables
         self.vehicle_armed = False
@@ -230,6 +247,15 @@ class BioinspiredPathGenerator(Node):
             .get_parameter_value()
             .bool_value
         )
+        # Add exploration duration parameter
+        self.exploration_duration = (
+            self.get_parameter("exploration_duration")
+            .get_parameter_value()
+            .double_value
+        )
+        self.drone_speed = (
+            self.get_parameter("drone_speed").get_parameter_value().double_value
+        )
 
     def _initialize_explorer(self):
         """Initialize the butterfly explorer with current parameters."""
@@ -242,12 +268,13 @@ class BioinspiredPathGenerator(Node):
             z_max=self.z_max,
             alpha=self.alpha,
             visit_threshold=self.visit_threshold,
+            drone_speed=self.drone_speed,
         )
 
     # ========================
     # CALLBACK FUNCTIONS
     # ========================
-    
+
     def vehicle_odometry_callback(self, msg):
         """Update current vehicle position from odometry and generate next waypoint if needed."""
         self.current_position = np.array(
@@ -258,6 +285,24 @@ class BioinspiredPathGenerator(Node):
             ]
         )
         self.vehicle_position_valid = True
+
+        # Initialize exploration start time
+        if self.exploration_start_time is None:
+            self.exploration_start_time = self.get_clock().now()
+
+        # Update explorer's current position and time
+        if hasattr(self.explorer, "current_pos"):
+            distance_traveled = np.linalg.norm(
+                self.current_position - self.explorer.current_pos
+            )
+            self.explorer.total_distance_traveled += float(distance_traveled)
+            self.explorer.current_pos = self.current_position
+
+            # Update time in explorer
+            elapsed_time = (
+                self.get_clock().now() - self.exploration_start_time
+            ).nanoseconds / 1e9
+            self.explorer.current_time = elapsed_time
 
         # Check if current waypoint is reached and generate next one
         if self.current_waypoint is not None:
@@ -320,7 +365,7 @@ class BioinspiredPathGenerator(Node):
     # ========================
     # PUBLISHER FUNCTIONS
     # ========================
-    
+
     def publish_trajectory_callback(self):
         """Publish trajectory setpoint for PX4."""
         if (
@@ -379,26 +424,72 @@ class BioinspiredPathGenerator(Node):
         waypoint_msg.z = float(waypoint[2])
         self.current_waypoint_pub.publish(waypoint_msg)
 
+        # Use the explorer's method if available
+        if hasattr(self.explorer, "get_unvisited_corners"):
+            corners_remaining = len(self.explorer.get_unvisited_corners())
+        else:
+            corners_remaining = 0
+
         corners_msg = Int32()
-        corners_msg.data = len(self.explorer.unvisited_corners)
+        corners_msg.data = corners_remaining
         self.corners_remaining_pub.publish(corners_msg)
 
         time_msg = Float64()
         time_msg.data = computation_time
         self.computation_time_pub.publish(time_msg)
 
+        # Publish time-based exploration info
+        stats = self.explorer.get_exploration_stats()
+
+        exploration_time_msg = Float64()
+        exploration_time_msg.data = stats.get("total_time", 0.0)
+        self.exploration_time_pub.publish(exploration_time_msg)
+
+        completion_msg = Float64()
+        completion_msg.data = stats.get("completion_rate", 0.0)
+        self.completion_rate_pub.publish(completion_msg)
+
+        if self.exploration_start_time is not None:
+            elapsed_time = (
+                self.get_clock().now() - self.exploration_start_time
+            ).nanoseconds / 1e9
+            time_remaining = max(0, self.exploration_duration - elapsed_time)
+
+            time_remaining_msg = Float64()
+            time_remaining_msg.data = time_remaining
+            self.time_remaining_pub.publish(time_remaining_msg)
+
     # ========================
     # CONTROL LOGIC FUNCTIONS
     # ========================
-    
+
     def generate_next_waypoint(self):
-        """Generate next waypoint using butterfly explorer."""
+        """Generate next waypoint using butterfly explorer with time constraints."""
         if not self.enable_path_generation:
             return
 
         start_time = self.get_clock().now()
 
-        waypoint = self.explorer.generate_next_waypoint()
+        # Calculate time remaining for exploration
+        if self.exploration_start_time is not None:
+            elapsed_time = (
+                self.get_clock().now() - self.exploration_start_time
+            ).nanoseconds / 1e9
+            time_remaining = max(0, self.exploration_duration - elapsed_time)
+
+            if time_remaining <= 0:
+                self.get_logger().warn(
+                    "Exploration time limit reached. Stopping waypoint generation."
+                )
+                self.enable_path_generation = False
+                return
+        else:
+            time_remaining = self.exploration_duration
+
+        # Generate waypoint with time constraints
+        waypoint = self.explorer.generate_next_waypoint(
+            time_remaining, self.exploration_duration
+        )
         self.current_waypoint = np.array(waypoint)
         self.waypoint_reached = False
 
@@ -408,9 +499,19 @@ class BioinspiredPathGenerator(Node):
 
         self.publish_debug_info(waypoint, computation_time)
 
+        # Get exploration stats for logging
+        stats = self.explorer.get_exploration_stats()
+        unvisited_count = (
+            len(self.explorer.get_unvisited_corners())
+            if hasattr(self.explorer, "get_unvisited_corners")
+            else 0
+        )
+
         self.get_logger().info(
             f"New waypoint generated: [{waypoint[0]:.2f}, {waypoint[1]:.2f}, {waypoint[2]:.2f}], "
-            f"Corners remaining: {len(self.explorer.unvisited_corners)}"
+            f"Corners remaining: {unvisited_count}, "
+            f"Time remaining: {time_remaining:.1f}s, "
+            f"Completion: {stats.get('completion_rate', 0):.1%}"
         )
 
     def auto_arm_and_offboard(self):
@@ -489,7 +590,19 @@ class BioinspiredPathGenerator(Node):
 
     def get_exploration_stats(self):
         """Get current exploration statistics."""
-        return self.explorer.get_exploration_stats()
+        stats = self.explorer.get_exploration_stats()
+
+        # Add ROS-specific timing information
+        if self.exploration_start_time is not None:
+            elapsed_time = (
+                self.get_clock().now() - self.exploration_start_time
+            ).nanoseconds / 1e9
+            stats["ros_elapsed_time"] = elapsed_time
+            stats["ros_time_remaining"] = max(
+                0, self.exploration_duration - elapsed_time
+            )
+
+        return stats
 
     def get_vehicle_status(self):
         """Get current vehicle status for debugging."""

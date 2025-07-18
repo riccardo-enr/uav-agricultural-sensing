@@ -57,6 +57,9 @@ class UAVController(Node):
             depth=10,
         )
 
+        # Parameters
+        self.fixed_yaw = self.declare_parameter("fixed_yaw", False).value
+
         # State variables
         self.current_position = np.array([0.0, 0.0, 0.0])
         self.current_velocity = np.array([0.0, 0.0, 0.0])
@@ -115,7 +118,7 @@ class UAVController(Node):
 
         self.vehicle_status_sub = self.create_subscription(
             VehicleStatus,
-            "/fmu/out/vehicle_status",
+            "/fmu/out/vehicle_status_v1",
             self.vehicle_status_callback,
             px4_qos,
         )
@@ -205,11 +208,11 @@ class UAVController(Node):
 
         # Rate-limited logging (assuming ~50Hz odometry)
         self.odometry_log_counter += 1
-        if self.odometry_log_counter % 50 == 0:  # Log every second
-            self.get_logger().info(
-                f"Position updated: [{self.current_position[0]:.2f}, "
-                f"{self.current_position[1]:.2f}, {self.current_position[2]:.2f}]"
-            )
+        # if self.odometry_log_counter % 50 == 0:  # Log every second
+        #     self.get_logger().debug(
+        #         f"Position updated: [{self.current_position[0]:.2f}, "
+        #         f"{self.current_position[1]:.2f}, {self.current_position[2]:.2f}]"
+        #     )
 
     def vehicle_status_callback(self, msg):
         """Update vehicle status information."""
@@ -263,11 +266,19 @@ class UAVController(Node):
         Publish trajectory setpoint for PX4.
         CRITICAL: This must ALWAYS publish a setpoint, even without a target.
         """
+        # Check and set arming/offboard if needed
+        if not self.vehicle_armed and self.nav_state != 14:
+            self.get_logger().info(
+                "UAV not armed and not in offboard mode. Arming and setting offboard mode."
+            )
+            self.arm_vehicle()
+            self.set_offboard_mode()
+
         self.trajectory_log_counter += 1
 
         # Log every second (20Hz -> every 20 calls)
         if self.trajectory_log_counter % 20 == 0:
-            self.get_logger().info(
+            self.get_logger().debug(
                 f"Trajectory callback executing (count: {self.trajectory_log_counter})"
             )
 
@@ -282,7 +293,7 @@ class UAVController(Node):
 
             # Log state changes or every 5 seconds
             if self.trajectory_log_counter % 100 == 0:
-                self.get_logger().info(
+                self.get_logger().debug(
                     "Publishing default hover setpoint at 2m altitude"
                 )
         else:
@@ -290,19 +301,21 @@ class UAVController(Node):
             msg.position[1] = float(self.current_target[0])  # North -> East
             msg.position[2] = -float(self.current_target[2])  # Up -> Down
 
-            # Calculate yaw to face target direction
-            if self.vehicle_position_valid:
-                direction = self.current_target - self.current_position
-                if np.linalg.norm(direction[:2]) > 0.1:
-                    msg.yaw = float(np.arctan2(direction[1], direction[0]))
-                else:
-                    msg.yaw = float("nan")
-            else:
-                msg.yaw = float("nan")
+            # # Calculate yaw to face target direction
+            # if self.vehicle_position_valid and not self.fixed_yaw:
+            #     direction = self.current_target - self.current_position
+            #     if np.linalg.norm(direction[:2]) > 0.1:
+            #         msg.yaw = float(np.arctan2(direction[1], direction[0]))
+            #     else:
+            #         msg.yaw = float("nan")
+            # else:
+            #     msg.yaw = float("nan")
+
+            msg.yaw = float("nan")  # No yaw control for now
 
             # Log every 2 seconds when tracking target
             if self.trajectory_log_counter % 40 == 0:
-                self.get_logger().info(
+                self.get_logger().debug(
                     f"Publishing target setpoint: [{self.current_target[0]:.2f}, "
                     f"{self.current_target[1]:.2f}, {self.current_target[2]:.2f}]"
                 )
@@ -313,7 +326,7 @@ class UAVController(Node):
 
         # Log first few setpoints to confirm publishing
         if self.startup_counter <= 5:
-            self.get_logger().info(
+            self.get_logger().debug(
                 f"Trajectory setpoint #{self.startup_counter} published"
             )
 
@@ -326,7 +339,7 @@ class UAVController(Node):
 
         # Log every second (10Hz -> every 10 calls)
         if self.offboard_log_counter % 10 == 0:
-            self.get_logger().info(
+            self.get_logger().debug(
                 f"Offboard control mode callback executing (count: {self.offboard_log_counter})"
             )
 
@@ -343,7 +356,7 @@ class UAVController(Node):
 
         # Log first few offboard signals
         if self.offboard_setpoint_counter <= 5:
-            self.get_logger().info(
+            self.get_logger().debug(
                 f"Offboard control mode #{self.offboard_setpoint_counter} published"
             )
 
@@ -353,7 +366,7 @@ class UAVController(Node):
 
         # Log every 2 seconds (2Hz -> every 4 calls)
         if self.status_log_counter % 4 == 0:
-            self.get_logger().info(
+            self.get_logger().debug(
                 f"Status callback executing (count: {self.status_log_counter})"
             )
 
@@ -567,7 +580,6 @@ class UAVController(Node):
 
         self.vehicle_command_pub.publish(msg)
         self.get_logger().info("Arm command sent")
-        return True
 
     def disarm_vehicle(self):
         """Send disarm command to the vehicle."""
@@ -589,7 +601,6 @@ class UAVController(Node):
 
         self.vehicle_command_pub.publish(msg)
         self.get_logger().info("Disarm command sent")
-        return True
 
     def set_offboard_mode(self):
         """Send command to switch to offboard mode."""
@@ -611,7 +622,6 @@ class UAVController(Node):
 
         self.vehicle_command_pub.publish(msg)
         self.get_logger().info("Offboard mode command sent")
-        return True
 
     def set_manual_mode(self):
         """Send command to switch to manual mode."""
@@ -633,7 +643,6 @@ class UAVController(Node):
 
         self.vehicle_command_pub.publish(msg)
         self.get_logger().info("Manual mode command sent")
-        return True
 
     def state_callback(self, msg):
         """Update current UAV state from state machine."""

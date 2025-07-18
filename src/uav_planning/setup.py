@@ -51,6 +51,7 @@ setup(
             "butterfly_path_node = uav_planning.nodes.uav_planning_node:main",
             # Action servers and clients
             "bioinspired_planner_action = uav_planning.actions.bioinspired_path_generator_action:main",
+            "bioinspired_path_generator_client = uav_planning.actions.bioinspired_path_generator_client:main",
             "path_generator_client = uav_planning.actions.path_generator_client:main",
             # Utilities
             "architecture_test = uav_planning.utils.architecture_test:main",
